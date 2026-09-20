@@ -1,111 +1,87 @@
 /* ==========================================================================
-   שיבוצניק — Design System
-   "Lineup" theme: warm cream/charcoal surfaces, kickoff-coral accent + teal
-   secondary, generous radii, warm-tinted elevation. RTL-first, Hebrew type
-   via Rubik.
-   Swapped in from the previous "Night Pitch" theme (dark graphite + grass
-   green) by re-valuing the same custom properties below — every selector
-   in this file still reads the same var() names, so this block (plus the
-   light-theme override and the font import) is the entire theme and a
-   single `git revert` of this commit restores Night Pitch exactly.
+   בדאט כדורגל — Design System
+   Dark "night pitch" theme: neutral graphite surfaces, grass-green accent,
+   glow-based elevation. RTL-first, Hebrew type via Assistant.
    ========================================================================== */
 
-@import url('https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700;800&display=swap');
 
 :root {
-  /* ---- Surfaces (dark theme values — this block is the default/base) ----
-     Warm charcoal, never blue-black, so switching theme never feels like
-     switching brands. */
-  --bg:        #16140f;
-  --bg-2:      #1c1912;
-  --surface:   #211d16;
-  --surface-2: #28241b;
-  --surface-3: #332d21;
-  --sunken:    #120f0a;
+  /* ---- Surfaces (dark, layered by elevation) ----
+     Neutral graphite, not green-tinted — the accent carries the football
+     identity instead of the surfaces themselves. */
+  --bg:        #14161a;
+  --bg-2:      #181b20;
+  --surface:   #1c1f25;
+  --surface-2: #23272e;
+  --surface-3: #2b2f38;
+  --sunken:    #101216;
 
   /* ---- Lines ---- */
-  --line:      #383021;
-  --line-soft: #2b2619;
+  --line:      #31363f;
+  --line-soft: #262a31;
 
   /* ---- Ink ---- */
-  --ink:       #f6f1e7;
-  --ink-2:     #d2c9b8;
-  --ink-3:     #a79c88;
-  --ink-4:     #776d5c;
+  --ink:       #eef0f3;
+  --ink-2:     #c4c9d1;
+  --ink-3:     #9aa3af;
+  --ink-4:     #6d7580;
 
-  /* ---- Accent: kickoff coral ---- */
-  --acc:       #ff8a65;
-  --acc-2:     #f26b45;
-  --acc-ink:   #1c1310;
-  --acc-glow:  rgba(255,138,101,.32);
-  --acc-dim:   rgba(255,138,101,.16);
+  /* ---- Accent: grass green ---- */
+  --acc:       oklch(0.78 0.10 155);
+  --acc-2:     oklch(0.70 0.11 155);
+  --acc-ink:   #12211a;
+  --acc-glow:  oklch(0.78 0.10 155 / .30);
+  --acc-dim:   oklch(0.78 0.10 155 / .13);
 
   /* ---- Semantic ---- */
-  --ok:        #5cc97c;
-  --ok-dim:    rgba(92,201,124,.16);
-  --warn:      #ffc24b;
-  --warn-dim:  rgba(255,194,75,.16);
-  --bad:       #ff6b5e;
-  --bad-dim:   rgba(255,107,94,.16);
-  --info:      #4fd8cc;
-  --info-dim:  rgba(79,216,204,.16);
+  --ok:        oklch(0.78 0.10 175);
+  --ok-dim:    oklch(0.78 0.10 175 / .14);
+  --warn:      oklch(0.80 0.11 72);
+  --warn-dim:  oklch(0.80 0.11 72 / .14);
+  --bad:       oklch(0.68 0.17 25);
+  --bad-dim:   oklch(0.68 0.17 25 / .14);
+  --info:      oklch(0.75 0.10 230);
+  --info-dim:  oklch(0.75 0.10 230 / .14);
 
-  /* ---- Rating hues: aliased onto the semantic set above rather than given
-     their own hue, same as the previous theme did (fit↔accent, def↔info) —
-     atk gets warn instead of its own one-off hue, so no rating color
-     competes with the new coral accent. ---- */
-  --atk: var(--warn);
-  --def: var(--info);
-  --fit: var(--acc);
+  /* ---- Rating hues ---- */
+  --atk: oklch(0.72 0.15 40);
+  --def: oklch(0.75 0.10 230);
+  --fit: oklch(0.78 0.10 155);
 
   /* ---- Chrome: sticky, blurred surfaces (topbar, mobile bottom nav) ----
-     Kept as a bare RGB triplet so each site can wrap it in its own alpha.
-     Same hue as --bg, so chrome reads as "the page, lifted". */
-  --chrome-rgb: 22,20,15;
+     Kept as a bare RGB triplet so each site can wrap it in its own alpha. */
+  --chrome-rgb: 20,22,26;
 
   /* ---- Ambient background glow (body + floating blobs) ---- */
-  --glow-1: rgba(255,138,101,.12);
-  --glow-2: rgba(79,216,204,.10);
-  --ambient-a: rgba(255,138,101,.16);
-  --ambient-b: rgba(79,216,204,.13);
+  --glow-1: oklch(0.78 0.10 155 / .10);
+  --glow-2: oklch(0.75 0.10 230 / .08);
+  --ambient-a: oklch(0.78 0.10 155 / .14);
+  --ambient-b: oklch(0.75 0.10 230 / .11);
 
   /* A touch lighter than --line, for hover states that need to read as
      "slightly emphasized" rather than a full border-color change. */
-  --line-hover: #463c29;
+  --line-hover: #3d434e;
 
-  /* ---- Radii: generous and consistent — the single biggest lever for
-     "friendly" over "clinical" in this identity. ---- */
-  --r-xs: 8px;
+  /* ---- Radii ---- */
+  --r-xs: 9px;
   --r-sm: 12px;
-  --r-md: 16px;
-  --r-lg: 24px;
-  --r-xl: 32px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-xl: 26px;
   --r-pill: 999px;
 
-  /* ---- Spacing: an 8-point-derived scale. Additive — most of this file
-     still uses literal px values, so this doesn't change existing layouts
-     by itself; it's here for anything new to build on. ---- */
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 20px;
-  --space-6: 24px;
-  --space-7: 32px;
-  --space-8: 40px;
-
-  /* ---- Elevation: neutral black in dark theme, warm-tinted in light
-     (see the light-theme block) — a grey shadow reads muddy on cream. ---- */
-  --e-1: 0 1px 2px rgba(0,0,0,.45);
-  --e-2: 0 8px 24px rgba(0,0,0,.4);
-  --e-3: 0 24px 56px rgba(0,0,0,.5);
-  --ring: 0 0 0 3px rgba(255,138,101,.4);
+  /* ---- Elevation ---- */
+  --e-1: 0 1px 2px rgba(0,0,0,.4);
+  --e-2: 0 4px 16px rgba(0,0,0,.35);
+  --e-3: 0 18px 44px rgba(0,0,0,.38);
+  --ring: 0 0 0 3px var(--acc-glow);
 
   --tap: 44px;                 /* minimum touch target */
-  --ease: cubic-bezier(.22,.8,.36,1);
+  --ease: cubic-bezier(.4,0,.2,1);
 
   color-scheme: dark;
-  font-family: 'Rubik', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family: 'Assistant', 'Segoe UI', system-ui, -apple-system, sans-serif;
   font-feature-settings: 'kern' 1;
 }
 
@@ -120,54 +96,53 @@
    many places (links, pills, "eyebrow" labels), not just fills.
    ========================================================================== */
 :root[data-theme="light"] {
-  --bg:        #fbf7f1;
-  --bg-2:      #f7f1e8;
+  --bg:        #e9f0e8;
+  --bg-2:      #e0e8dd;
   --surface:   #ffffff;
-  --surface-2: #f2ece1;
-  --surface-3: #e9e1d2;
-  --sunken:    #f5efe4;
+  --surface-2: #f1f6ef;
+  --surface-3: #e5ece1;
+  --sunken:    #e4ece1;
 
-  --line:      #e6dcc8;
-  --line-soft: #efe8da;
-  --line-hover:#d8cbae;
+  --line:      #d3e2d2;
+  --line-soft: #deebde;
+  --line-hover:#bbcdb8;
 
-  --ink:       #221d17;
-  --ink-2:     #4e4638;
-  --ink-3:     #766c5b;
-  --ink-4:     #8f846e;
+  --ink:       #0f2318;
+  --ink-2:     #3b5044;
+  --ink-3:     #5c7264;
+  --ink-4:     #889d8d;
 
-  --acc:       #c8451f;
-  --acc-2:     #a6350f;
+  --acc:       oklch(0.52 0.11 150);
+  --acc-2:     oklch(0.44 0.12 150);
   --acc-ink:   #ffffff;
-  --acc-glow:  rgba(200,69,31,.22);
-  --acc-dim:   rgba(200,69,31,.10);
+  --acc-glow:  oklch(0.52 0.11 150 / .22);
+  --acc-dim:   oklch(0.52 0.11 150 / .10);
 
-  --ok:        #1f7a3d;
-  --ok-dim:    rgba(31,122,61,.12);
-  --warn:      #8a5a00;
-  --warn-dim:  rgba(138,90,0,.12);
-  --bad:       #c4291d;
-  --bad-dim:   rgba(196,41,29,.11);
-  --info:      #0c7a72;
-  --info-dim:  rgba(12,122,114,.12);
+  --ok:        oklch(0.48 0.11 175);
+  --ok-dim:    oklch(0.48 0.11 175 / .12);
+  --warn:      oklch(0.56 0.11 70);
+  --warn-dim:  oklch(0.56 0.11 70 / .14);
+  --bad:       oklch(0.55 0.19 25);
+  --bad-dim:   oklch(0.55 0.19 25 / .11);
+  --info:      oklch(0.52 0.14 230);
+  --info-dim:  oklch(0.52 0.14 230 / .11);
 
   /* ---- Rating hues ----
-     Same aliasing as the dark theme above — the base :root block's values
-     here alias --acc (--fit) and --info (--def), so their light overrides do too. */
-  --atk: var(--warn);
-  --def: var(--info);
-  --fit: var(--acc);
+     Same darkening as the semantic set above — the dark-theme values here
+     alias --acc (--fit) and --info (--def), so their light overrides do too. */
+  --atk: oklch(0.55 0.17 35);
+  --def: oklch(0.52 0.14 230);
+  --fit: oklch(0.52 0.11 150);
 
-  --chrome-rgb: 251,247,241;
-  --glow-1: rgba(200,69,31,.08);
-  --glow-2: rgba(12,122,114,.07);
-  --ambient-a: rgba(200,69,31,.10);
-  --ambient-b: rgba(12,122,114,.09);
+  --chrome-rgb: 233,240,232;
+  --glow-1: oklch(0.52 0.11 150 / .07);
+  --glow-2: oklch(0.52 0.14 230 / .06);
+  --ambient-a: oklch(0.52 0.11 150 / .10);
+  --ambient-b: oklch(0.52 0.14 230 / .08);
 
-  --e-1: 0 1px 2px rgba(40,30,10,.06);
-  --e-2: 0 6px 20px rgba(40,30,10,.08);
-  --e-3: 0 20px 48px rgba(40,30,10,.14);
-  --ring: 0 0 0 3px rgba(200,69,31,.35);
+  --e-1: 0 1px 2px rgba(20,50,30,.08);
+  --e-2: 0 4px 16px rgba(20,50,30,.08);
+  --e-3: 0 18px 40px rgba(20,50,30,.12);
 
   color-scheme: light;
 }
