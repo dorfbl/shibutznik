@@ -16,11 +16,13 @@ import {
   CircleAlert,
   CircleCheck,
   CircleUserRound,
+  ClipboardList,
   Clock,
   Crown,
   Goal,
   GripVertical,
   HelpCircle,
+  History,
   Info,
   LayoutDashboard,
   LogOut,
@@ -34,7 +36,9 @@ import {
   RotateCcw,
   RotateCw,
   Search,
+  Settings,
   ShieldAlert,
+  SlidersHorizontal,
   Sparkles,
   Sun,
   Undo2,
@@ -1962,6 +1966,17 @@ function UnderstaffedAlerts({ rows, onGoToTeams }) {
   );
 }
 
+const ADMIN_TAB_ICONS = {
+  fixtures: CalendarDays,
+  control: SlidersHorizontal,
+  players: UserCog,
+  registration: ClipboardList,
+  teams: Users,
+  results: Goal,
+  settings: Settings,
+  audit: History
+};
+
 function AdminView({ data, reload, refreshAll, user, selectedMatchId, setSelectedMatchId, setToast, askConfirm }) {
   const isStatsOnly = user?.role === "stats_admin";
   const tabs = isStatsOnly
@@ -2035,12 +2050,16 @@ function AdminView({ data, reload, refreshAll, user, selectedMatchId, setSelecte
   return (
     <section className="stack admin">
       <nav className="admin-tabs">
-        {tabs.map(([id, label]) => (
-          <button key={id} className={tab === id ? "active" : ""} onClick={() => setTab(id)}>
-            {label}
-            {id === "registration" && data.metrics.payments > 0 && <span className="tab-badge">{data.metrics.payments}</span>}
-          </button>
-        ))}
+        {tabs.map(([id, label]) => {
+          const Icon = ADMIN_TAB_ICONS[id];
+          return (
+            <button key={id} className={tab === id ? "active" : ""} onClick={() => setTab(id)}>
+              {Icon && <Icon size={16} />}
+              <span>{label}</span>
+              {id === "registration" && data.metrics.payments > 0 && <span className="tab-badge">{data.metrics.payments}</span>}
+            </button>
+          );
+        })}
       </nav>
       {hasAlerts && (
         <>
@@ -2049,7 +2068,7 @@ function AdminView({ data, reload, refreshAll, user, selectedMatchId, setSelecte
               <p className="eyebrow">מרכז בקרה</p>
               <h2>מה דורש טיפול עכשיו</h2>
             </div>
-            <span className="pill">דירוגים מוצגים רק כאן</span>
+            <span className="pill"><Bell size={13} /> דירוגים מוצגים רק כאן</span>
           </article>
           <JoinRequestAlerts rows={data.pendingJoinRequests} mutate={mutate} />
           <PaymentAlerts rows={data.pendingPayments} mutate={mutate} setSelectedMatchId={setSelectedMatchId} />
@@ -2487,9 +2506,9 @@ function RegistrationQuestionnaireSettings({ settings, questions, mutate }) {
               success: "ההגדרה עודכנה"
             })}
           >
-            <span className="state-dot" aria-hidden="true">{enabled ? <Check size={14} /> : null}</span>
             <span className="flow-label">שאלון בעת הרשמה</span>
             <span className="flow-hint">{enabled ? "פעיל" : "כבוי"}</span>
+            <span className="switch-track" aria-hidden="true" />
           </button>
         </div>
       </article>
@@ -2809,9 +2828,9 @@ function AdminSettings({ mutate, settings, organization, registrationQuestions, 
               success: "ההגדרה עודכנה"
             })}
           >
-            <span className="state-dot" aria-hidden="true">{statsEnabled ? <Check size={14} /> : null}</span>
             <span className="flow-label">הצגת סטטיסטיקות בלחיצה על שחקן</span>
             <span className="flow-hint">{statsEnabled ? "פעיל" : "כבוי"}</span>
+            <span className="switch-track" aria-hidden="true" />
           </button>
         </div>
       </article>
@@ -2890,11 +2909,9 @@ function AdminControl({ bundle, mutate }) {
                   success: "מצב ההרשמה עודכן"
                 })}
               >
-                <span className="state-dot" aria-hidden="true">
-                  {isOpen ? <Check size={14} /> : null}
-                </span>
                 <span className="flow-label">{label}</span>
                 <span className="flow-hint">{isOpen ? "פתוח" : "סגור"}</span>
+                <span className="switch-track" aria-hidden="true" />
               </button>
             );
           })}
@@ -3096,12 +3113,15 @@ function AdminPlayers({ players, mutate, bundle, user, weights }) {
 
       <div className="players-toolbar">
         <Field label="חיפוש שחקן">
-          <input
-            type="search"
-            value={search}
-            onChange={(event) => changeSearch(event.target.value)}
-            placeholder="שם או טלפון"
-          />
+          <div className="input-icon-field">
+            <Search size={16} className="input-icon" aria-hidden="true" />
+            <input
+              type="search"
+              value={search}
+              onChange={(event) => changeSearch(event.target.value)}
+              placeholder="שם או טלפון"
+            />
+          </div>
         </Field>
         <Field label="סינון לפי סטטוס">
           <select value={statusFilter} onChange={(event) => changeStatus(event.target.value)}>
@@ -3181,7 +3201,7 @@ function Pagination({ page, pageCount, total, from, to, onChange }) {
     <nav className="pagination" aria-label="ניווט בין עמודים">
       <p className="pagination-info">מציג {from}–{to} מתוך {total}</p>
       <div className="pagination-controls">
-        <button onClick={() => onChange(page - 1)} disabled={page === 1} aria-label="עמוד קודם">הקודם</button>
+        <button onClick={() => onChange(page - 1)} disabled={page === 1} aria-label="עמוד קודם"><ChevronRight size={16} /> הקודם</button>
         {first > 1 && <button onClick={() => onChange(1)}>1</button>}
         {first > 2 && <span className="pagination-gap">…</span>}
         {pages.map((item) => (
@@ -3196,7 +3216,7 @@ function Pagination({ page, pageCount, total, from, to, onChange }) {
         ))}
         {last < pageCount - 1 && <span className="pagination-gap">…</span>}
         {last < pageCount && <button onClick={() => onChange(pageCount)}>{pageCount}</button>}
-        <button onClick={() => onChange(page + 1)} disabled={page === pageCount} aria-label="עמוד הבא">הבא</button>
+        <button onClick={() => onChange(page + 1)} disabled={page === pageCount} aria-label="עמוד הבא">הבא <ChevronLeft size={16} /></button>
       </div>
     </nav>
   );
@@ -5636,7 +5656,7 @@ function AdminResults({ bundle, players, mutate }) {
             confirm: "לפרסם סטטיסטיקות?",
             confirmText: "כל השחקנים יראו מיד את התוצאות והמצטיינים.",
             success: "הסטטיסטיקות פורסמו"
-          })}>פרסם סטטיסטיקות</button>
+          })}><Trophy size={16} /> פרסם סטטיסטיקות</button>
         </div>
         {pitch?.games.map((game) => (
           <GameRow key={game.id} game={game} pitch={pitch} goals={bundle.goals.filter((goal) => goal.game_id === game.id)} mutate={mutate} />
@@ -6008,18 +6028,27 @@ function AuditLog({ rows }) {
   return (
     <article className="glass">
       <p className="eyebrow">יומן פעולות</p>
-      <div className="admin-list">
-        {visible.map((row) => (
-          <div className="admin-list-row" key={row.id}>
-            <strong>{row.action}</strong>
-            <small>{row.entity_type} · {row.actor_name || "מערכת"} · {new Date(row.created_at).toLocaleString("he-IL")}</small>
+      {rows.length === 0 ? (
+        <div className="empty-drop"><History /><span>אין פעולות עדיין</span></div>
+      ) : (
+        <>
+          <div className="admin-list">
+            {visible.map((row) => (
+              <div className="admin-list-row audit-row" key={row.id}>
+                <span className="audit-row-icon" aria-hidden="true"><History size={14} /></span>
+                <div>
+                  <strong>{row.action}</strong>
+                  <small>{row.entity_type} · {row.actor_name || "מערכת"} · {new Date(row.created_at).toLocaleString("he-IL")}</small>
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
-      {visibleCount < rows.length && (
-        <button onClick={() => setVisibleCount((count) => count + AUDIT_PAGE_SIZE)}>
-          הצג עוד ({rows.length - visibleCount})
-        </button>
+          {visibleCount < rows.length && (
+            <button onClick={() => setVisibleCount((count) => count + AUDIT_PAGE_SIZE)}>
+              הצג עוד ({rows.length - visibleCount})
+            </button>
+          )}
+        </>
       )}
     </article>
   );

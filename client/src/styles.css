@@ -1618,6 +1618,7 @@ button.formation-player { cursor: grab; }
   transition: background .18s var(--ease), color .18s var(--ease), box-shadow .18s var(--ease);
 }
 .admin-tabs button:hover:not(.active) { background: var(--surface-2); color: var(--ink-2); }
+.admin-tabs button svg { width: 16px; height: 16px; flex: none; }
 .tab-badge {
   display: inline-flex;
   align-items: center;
@@ -1754,17 +1755,40 @@ button.formation-player { cursor: grab; }
   min-height: 44px;
 }
 .audience-toggle:hover { background: var(--surface-2); }
+.audience-toggle .flow-hint { opacity: 1; }
 .audience-toggle.on {
   border-color: var(--acc);
   background: var(--acc-dim);
 }
-.audience-toggle.on .state-dot {
-  background: var(--acc);
-  border-color: var(--acc);
-  color: var(--acc-ink);
-}
 .audience-toggle.on .flow-label { color: var(--ink); font-weight: 700; }
 .audience-toggle.on .flow-hint { opacity: 1; color: var(--acc); }
+
+/* A real switch, not a re-skinned state-dot — this is an independent on/off,
+   not a "pick one of these" choice like the state list above it, so it
+   shouldn't look like one. */
+.switch-track {
+  flex: none;
+  width: 40px;
+  height: 24px;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  border: 1.5px solid var(--line);
+  position: relative;
+  transition: background .18s var(--ease), border-color .18s var(--ease);
+}
+.switch-track::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  inset-inline-start: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--ink-4);
+  transition: transform .18s var(--ease), background .18s var(--ease);
+}
+.audience-toggle.on .switch-track { background: var(--acc); border-color: var(--acc); }
+.audience-toggle.on .switch-track::after { background: var(--acc-ink); transform: translateX(-16px); }
 
 /* Three linked percentage sliders (rank weights) — same markup and the same
    input[type=range] styling at every width, so "dynamic" behaves alike on
@@ -1829,6 +1853,17 @@ button.formation-player { cursor: grab; }
 .admin-list-row > div { min-width: 0; }
 .admin-list-row strong { font-size: .92rem; font-weight: 600; display: block; }
 .admin-list-row small { display: block; }
+.audit-row-icon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--ink-4);
+}
 
 .row-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-inline-start: auto; }
 .row-actions button { min-height: 38px; padding: 8px 13px; font-size: .84rem; }
@@ -2898,6 +2933,16 @@ body.modal-open {
   gap: 12px;
   margin-bottom: 16px;
 }
+/* Generic leading-icon wrapper for a text input — first used for the
+   player search field, reusable anywhere a field needs one. */
+.input-icon-field { position: relative; display: flex; align-items: center; }
+.input-icon-field input { width: 100%; padding-inline-start: 38px; }
+.input-icon-field .input-icon {
+  position: absolute;
+  inset-inline-start: 12px;
+  color: var(--ink-4);
+  pointer-events: none;
+}
 @media (min-width: 620px) {
   .players-toolbar { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); align-items: end; }
 }
@@ -3494,7 +3539,9 @@ html, body { max-width: 100%; overflow-x: hidden; touch-action: manipulation; }
     font-size: .74rem;
     font-weight: 600;
     padding: 6px 12px;
+    gap: 6px;
   }
+  .admin-tabs button svg { width: 14px; height: 14px; }
   .admin-tabs button.active {
     background: transparent;
     border-color: var(--acc);
