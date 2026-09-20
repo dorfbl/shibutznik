@@ -1,0 +1,13 @@
+node_modules/
+client/dist/
+.env
+.env.*
+!.env.example
+
+# Legacy/duplicate snapshot of this app, not part of the deployed build
+# (see docker/*.Dockerfile and compose.yml, which only reference the
+# top-level client/ and server/ directories).
+bad/
+
+.claude/
+*.log

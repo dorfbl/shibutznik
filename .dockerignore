@@ -1,0 +1,8 @@
+node_modules
+bad
+db
+.git
+*.md
+*.png
+.env
+.env.example

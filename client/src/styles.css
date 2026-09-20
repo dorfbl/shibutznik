@@ -1,0 +1,3844 @@
+/* ==========================================================================
+   בדאט כדורגל — Design System
+   Dark "night pitch" theme: neutral graphite surfaces, grass-green accent,
+   glow-based elevation. RTL-first, Hebrew type via Assistant.
+   ========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700;800&display=swap');
+
+:root {
+  /* ---- Surfaces (dark, layered by elevation) ----
+     Neutral graphite, not green-tinted — the accent carries the football
+     identity instead of the surfaces themselves. */
+  --bg:        #14161a;
+  --bg-2:      #181b20;
+  --surface:   #1c1f25;
+  --surface-2: #23272e;
+  --surface-3: #2b2f38;
+  --sunken:    #101216;
+
+  /* ---- Lines ---- */
+  --line:      #31363f;
+  --line-soft: #262a31;
+
+  /* ---- Ink ---- */
+  --ink:       #eef0f3;
+  --ink-2:     #c4c9d1;
+  --ink-3:     #9aa3af;
+  --ink-4:     #6d7580;
+
+  /* ---- Accent: grass green ---- */
+  --acc:       oklch(0.78 0.10 155);
+  --acc-2:     oklch(0.70 0.11 155);
+  --acc-ink:   #12211a;
+  --acc-glow:  oklch(0.78 0.10 155 / .30);
+  --acc-dim:   oklch(0.78 0.10 155 / .13);
+
+  /* ---- Semantic ---- */
+  --ok:        oklch(0.78 0.10 175);
+  --ok-dim:    oklch(0.78 0.10 175 / .14);
+  --warn:      oklch(0.80 0.11 72);
+  --warn-dim:  oklch(0.80 0.11 72 / .14);
+  --bad:       oklch(0.68 0.17 25);
+  --bad-dim:   oklch(0.68 0.17 25 / .14);
+  --info:      oklch(0.75 0.10 230);
+  --info-dim:  oklch(0.75 0.10 230 / .14);
+
+  /* ---- Rating hues ---- */
+  --atk: oklch(0.72 0.15 40);
+  --def: oklch(0.75 0.10 230);
+  --fit: oklch(0.78 0.10 155);
+
+  /* ---- Chrome: sticky, blurred surfaces (topbar, mobile bottom nav) ----
+     Kept as a bare RGB triplet so each site can wrap it in its own alpha. */
+  --chrome-rgb: 20,22,26;
+
+  /* ---- Ambient background glow (body + floating blobs) ---- */
+  --glow-1: oklch(0.78 0.10 155 / .10);
+  --glow-2: oklch(0.75 0.10 230 / .08);
+  --ambient-a: oklch(0.78 0.10 155 / .14);
+  --ambient-b: oklch(0.75 0.10 230 / .11);
+
+  /* A touch lighter than --line, for hover states that need to read as
+     "slightly emphasized" rather than a full border-color change. */
+  --line-hover: #3d434e;
+
+  /* ---- Radii ---- */
+  --r-xs: 9px;
+  --r-sm: 12px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-xl: 26px;
+  --r-pill: 999px;
+
+  /* ---- Elevation ---- */
+  --e-1: 0 1px 2px rgba(0,0,0,.4);
+  --e-2: 0 4px 16px rgba(0,0,0,.35);
+  --e-3: 0 18px 44px rgba(0,0,0,.38);
+  --ring: 0 0 0 3px var(--acc-glow);
+
+  --tap: 44px;                 /* minimum touch target */
+  --ease: cubic-bezier(.4,0,.2,1);
+
+  color-scheme: dark;
+  font-family: 'Assistant', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-feature-settings: 'kern' 1;
+}
+
+/* ==========================================================================
+   LIGHT THEME
+   Toggled via [data-theme="light"] on <html> (see ThemeToggle in main.jsx,
+   persisted to localStorage). Same tokens, different values — everything
+   downstream reads var(--x), so this block is the entire theme.
+   Accent/semantic hues are darkened relative to the dark theme: the pale
+   green/teal/amber/blue that pop on near-black surfaces are too low-contrast
+   to use as TEXT on a white one, and those tokens double as text color in
+   many places (links, pills, "eyebrow" labels), not just fills.
+   ========================================================================== */
+:root[data-theme="light"] {
+  --bg:        #e9f0e8;
+  --bg-2:      #e0e8dd;
+  --surface:   #ffffff;
+  --surface-2: #f1f6ef;
+  --surface-3: #e5ece1;
+  --sunken:    #e4ece1;
+
+  --line:      #d3e2d2;
+  --line-soft: #deebde;
+  --line-hover:#bbcdb8;
+
+  --ink:       #0f2318;
+  --ink-2:     #3b5044;
+  --ink-3:     #5c7264;
+  --ink-4:     #889d8d;
+
+  --acc:       oklch(0.52 0.11 150);
+  --acc-2:     oklch(0.44 0.12 150);
+  --acc-ink:   #ffffff;
+  --acc-glow:  oklch(0.52 0.11 150 / .22);
+  --acc-dim:   oklch(0.52 0.11 150 / .10);
+
+  --ok:        oklch(0.48 0.11 175);
+  --ok-dim:    oklch(0.48 0.11 175 / .12);
+  --warn:      oklch(0.56 0.11 70);
+  --warn-dim:  oklch(0.56 0.11 70 / .14);
+  --bad:       oklch(0.55 0.19 25);
+  --bad-dim:   oklch(0.55 0.19 25 / .11);
+  --info:      oklch(0.52 0.14 230);
+  --info-dim:  oklch(0.52 0.14 230 / .11);
+
+  /* ---- Rating hues ----
+     Same darkening as the semantic set above — the dark-theme values here
+     alias --acc (--fit) and --info (--def), so their light overrides do too. */
+  --atk: oklch(0.55 0.17 35);
+  --def: oklch(0.52 0.14 230);
+  --fit: oklch(0.52 0.11 150);
+
+  --chrome-rgb: 233,240,232;
+  --glow-1: oklch(0.52 0.11 150 / .07);
+  --glow-2: oklch(0.52 0.14 230 / .06);
+  --ambient-a: oklch(0.52 0.11 150 / .10);
+  --ambient-b: oklch(0.52 0.14 230 / .08);
+
+  --e-1: 0 1px 2px rgba(20,50,30,.08);
+  --e-2: 0 4px 16px rgba(20,50,30,.08);
+  --e-3: 0 18px 40px rgba(20,50,30,.12);
+
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(1100px 620px at 78% -12%, var(--glow-1), transparent 62%),
+    radial-gradient(900px 560px at 8% 4%,   var(--glow-2), transparent 58%),
+    var(--bg);
+  background-attachment: fixed;
+  color: var(--ink);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection { background: var(--acc); color: var(--acc-ink); }
+
+/* Scrollbars */
+* { scrollbar-width: thin; scrollbar-color: var(--surface-3) transparent; }
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-thumb {
+  background: var(--surface-3);
+  border-radius: var(--r-pill);
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover { background: var(--ink-4); background-clip: content-box; }
+
+/* ---- Typography ---- */
+h1, h2, h3, h4 {
+  margin: 0;
+  font-weight: 700;
+  letter-spacing: -.015em;
+  line-height: 1.2;
+  color: var(--ink);
+}
+h1 { font-size: clamp(1.35rem, 1.1rem + 1.1vw, 1.85rem); }
+h2 { font-size: clamp(1.1rem,  .98rem + .6vw,  1.4rem);  }
+h3 { font-size: 1.05rem; }
+p  { margin: 0; }
+strong { font-weight: 700; }
+small  { font-size: .78rem; line-height: 1.45; color: var(--ink-3); }
+
+/* Numerals: tabular everywhere they line up */
+.metric strong, .rating-stepper-value, .standing-row span, .queue-number,
+.team-lane-strength, .leaderboard span {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+a { color: var(--acc); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+  border-radius: var(--r-sm);
+}
+
+/* ==========================================================================
+   CONTROLS
+   ========================================================================== */
+
+button, input, select, textarea { font: inherit; font-family: inherit; color: inherit; }
+
+/* ---- Button: default (secondary/ghost) ---- */
+button {
+  --btn-bg: var(--surface-2);
+  --btn-ink: var(--ink);
+  --btn-line: var(--line);
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: var(--tap);
+  padding: 10px 16px;
+  background: var(--btn-bg);
+  color: var(--btn-ink);
+  border: 1px solid var(--btn-line);
+  border-radius: var(--r-md);
+  font-size: .92rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .18s var(--ease), border-color .18s var(--ease),
+              transform .12s var(--ease), box-shadow .18s var(--ease), color .18s var(--ease);
+}
+button:hover:not(:disabled) {
+  background: var(--surface-3);
+  border-color: var(--line-hover);
+}
+button:active:not(:disabled) { transform: translateY(1px); }
+button:disabled { opacity: .45; cursor: not-allowed; }
+button svg { width: 17px; height: 17px; flex: none; }
+
+/* ---- Button: primary ---- */
+button.primary {
+  --btn-bg: linear-gradient(180deg, var(--acc) 0%, var(--acc-2) 100%);
+  --btn-ink: var(--acc-ink);
+  --btn-line: transparent;
+  font-weight: 700;
+  box-shadow: 0 2px 12px var(--acc-glow), inset 0 1px 0 rgba(255,255,255,.28);
+}
+button.primary:hover:not(:disabled) {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--acc) 85%, white) 0%, var(--acc) 100%);
+  border-color: transparent;
+  box-shadow: 0 4px 20px var(--acc-glow), inset 0 1px 0 rgba(255,255,255,.35);
+}
+
+/* ---- Button: danger ---- */
+button.danger {
+  --btn-bg: var(--bad-dim);
+  --btn-ink: var(--bad);
+  --btn-line: color-mix(in srgb, var(--bad) 28%, transparent);
+}
+button.danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--bad) 20%, transparent);
+  border-color: color-mix(in srgb, var(--bad) 45%, transparent);
+}
+
+/* ---- Text fields ---- */
+input:not([type="range"]), select, textarea {
+  width: 100%;
+  min-height: var(--tap);
+  padding: 10px 14px;
+  background: var(--sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  font-size: .95rem;
+  font-weight: 500;
+  outline: none;
+  transition: border-color .18s var(--ease), box-shadow .18s var(--ease), background .18s var(--ease);
+}
+input::placeholder, textarea::placeholder { color: var(--ink-4); font-weight: 500; }
+input:not([type="range"]):hover:not(:disabled), select:hover, textarea:hover { border-color: var(--line-hover); }
+input:not([type="range"]):focus, select:focus, textarea:focus {
+  border-color: var(--acc);
+  box-shadow: var(--ring);
+  background: var(--bg-2);
+}
+input:not([type="range"]):disabled { opacity: .5; cursor: not-allowed; }
+
+/* Range sliders: styled as an actual slider, not a boxed text field, so an
+   enabled slider doesn't read as disabled/greyed-out. */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: var(--tap);
+  background: transparent;
+  cursor: pointer;
+}
+input[type="range"]:disabled { opacity: .5; cursor: not-allowed; }
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line);
+}
+input[type="range"]::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line);
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  margin-top: -7px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--acc);
+  border: none;
+  box-shadow: 0 1px 3px rgba(0,0,0,.35);
+  transition: box-shadow .18s var(--ease), transform .18s var(--ease);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--acc);
+  border: none;
+  box-shadow: 0 1px 3px rgba(0,0,0,.35);
+  transition: box-shadow .18s var(--ease), transform .18s var(--ease);
+}
+input[type="range"]:hover:not(:disabled)::-webkit-slider-thumb,
+input[type="range"]:focus::-webkit-slider-thumb { box-shadow: var(--ring); }
+input[type="range"]:hover:not(:disabled)::-moz-range-thumb,
+input[type="range"]:focus::-moz-range-thumb { box-shadow: var(--ring); }
+input[type="range"]:disabled::-webkit-slider-thumb { background: var(--ink-4); }
+input[type="range"]:disabled::-moz-range-thumb { background: var(--ink-4); }
+input[type="range"]:focus { outline: none; }
+
+/* Native pickers: keep them legible on dark */
+input[type="date"], input[type="time"] { position: relative; }
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator {
+  filter: invert(.75);
+  cursor: pointer;
+  opacity: .8;
+}
+input[type="date"]::-webkit-calendar-picker-indicator:hover,
+input[type="time"]::-webkit-calendar-picker-indicator:hover { opacity: 1; }
+
+/* Number inputs: hide spinners, we use explicit steppers */
+input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+/* ---- Select: custom chevron, RTL-aware ---- */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-inline-end: 38px;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2374829a' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: left 13px center;
+  background-size: 16px;
+  cursor: pointer;
+}
+select option { background: var(--surface); color: var(--ink); }
+
+/* ---- Checkbox ---- */
+input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 22px;
+  height: 22px;
+  min-height: 0;
+  flex: none;
+  padding: 0;
+  border: 2px solid var(--line);
+  border-radius: 7px;
+  background: var(--sunken);
+  cursor: pointer;
+  display: inline-grid;
+  place-content: center;
+  transition: background .15s var(--ease), border-color .15s var(--ease);
+}
+input[type="checkbox"]::after {
+  content: "";
+  width: 11px;
+  height: 6px;
+  border: 2.5px solid var(--acc-ink);
+  border-top: 0;
+  border-right: 0;
+  transform: rotate(-45deg) scale(0);
+  transition: transform .16s var(--ease);
+}
+input[type="checkbox"]:checked {
+  background: var(--acc);
+  border-color: var(--acc);
+}
+input[type="checkbox"]:checked::after { transform: rotate(-45deg) scale(1); }
+input[type="checkbox"]:hover { border-color: var(--ink-4); }
+
+input[type="color"] {
+  min-height: 44px;
+  padding: 3px;
+  cursor: pointer;
+  background: var(--sunken);
+}
+input[type="color"]::-webkit-color-swatch { border: none; border-radius: var(--r-xs); }
+input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+
+/* Press-and-hold stepper for the attack/defense/fitness (1-20) ratings.
+   Two big tap targets and a number — no dragging, no precision aiming.
+   Holding a button down auto-repeats and accelerates toward the end. */
+.rating-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.rating-stepper-value {
+  min-width: 2.2em;
+  text-align: center;
+  font-size: .95rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.rating-stepper-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  background: var(--sunken);
+  color: var(--ink-2);
+  touch-action: manipulation;
+  transition: background .15s var(--ease), border-color .15s var(--ease), transform .1s var(--ease);
+}
+.rating-stepper-btn:active { transform: scale(.9); }
+.rating-stepper-btn:focus-visible { box-shadow: var(--ring); }
+.rating-stepper-btn:disabled { opacity: .35; }
+
+.rating-att .rating-stepper-btn { color: var(--atk); }
+.rating-def .rating-stepper-btn { color: var(--def); }
+.rating-fit .rating-stepper-btn { color: var(--fit); }
+.rating-att .rating-stepper-btn:not(:disabled):active { background: var(--atk); border-color: var(--atk); color: var(--surface); }
+.rating-def .rating-stepper-btn:not(:disabled):active { background: var(--def); border-color: var(--def); color: var(--surface); }
+.rating-fit .rating-stepper-btn:not(:disabled):active { background: var(--fit); border-color: var(--fit); color: var(--surface); }
+
+/* Mobile card: more room per row, so the buttons get a fuller touch target
+   and a lifted background to read clearly against the sunken card. */
+.rating-input .rating-stepper-btn { width: 40px; height: 40px; background: var(--surface-2); }
+.rating-input .rating-stepper-value { font-size: 1.05rem; }
+
+/* ==========================================================================
+   LAYOUT & SHELL
+   ========================================================================== */
+
+.app-shell {
+  position: relative;
+  width: min(1920px, 100%);
+  margin: 0 auto;
+  padding: 0 clamp(12px, 2.2vw, 26px) 40px;
+  min-height: 100vh;
+}
+
+/* Desktop: header and primary nav share one sticky row instead of the nav
+   sitting in its own centred strip underneath — .topbar-row (not .topbar
+   itself) carries the sticky/z-index so both children scroll as one unit. */
+@media (min-width: 760px) {
+  .topbar-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    margin-bottom: 20px;
+  }
+  .topbar-row .topbar {
+    position: static;
+    flex: 1 1 auto;
+    margin-bottom: 0;
+  }
+  .topbar-row .segmented {
+    flex: none;
+    width: auto;
+    margin: 0;
+  }
+}
+
+/* Ambient glows — subtle depth behind content */
+.ambient {
+  position: fixed;
+  z-index: 0;
+  border-radius: 50%;
+  filter: blur(90px);
+  pointer-events: none;
+  opacity: .5;
+}
+.ambient-a { width: 46vw; height: 46vw; top: -14vw; inset-inline-end: -12vw; background: var(--ambient-a); }
+.ambient-b { width: 40vw; height: 40vw; bottom: -16vw; inset-inline-start: -12vw; background: var(--ambient-b); }
+/* Lift real content above the ambient blobs — but never the overlays, which
+   must stay position:fixed with their own stacking order. .topbar-row is
+   excluded too: giving IT a z-index here would make it a stacking context
+   that traps its fixed-on-mobile .segmented child inside a z-index:1 box,
+   losing to <main> (also lifted to z-index:1, but later in the DOM) instead
+   of beating it — .topbar/.segmented already carry their own z-index. */
+.app-shell > *:not(.ambient):not(.modal-backdrop):not(.toast):not(.topbar-row) { position: relative; z-index: 1; }
+
+/* ---- Top bar ---- */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 20px;
+  padding: 14px clamp(14px, 2vw, 20px);
+  background: rgba(var(--chrome-rgb), .82);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  border: 1px solid var(--line);
+  border-radius: 0 0 var(--r-xl) var(--r-xl);
+  border-top: 0;
+  box-shadow: var(--e-2);
+}
+.topbar h1 { display: flex; align-items: center; gap: 8px; font-size: clamp(1.15rem, 1rem + .7vw, 1.5rem); }
+/* The only thing left next to the name — no more role/platform pills, just
+   a quiet mark for an active monthly membership. */
+.member-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--r-pill);
+  background: var(--acc-dim);
+  color: var(--acc);
+  flex: none;
+}
+.toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+/* Small caps label above a heading */
+.eyebrow {
+  margin: 0 0 3px;
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .1em;
+  color: var(--acc);
+  text-transform: uppercase;
+}
+
+main { display: block; }
+
+/* ---- Primary navigation ----
+   Rendered as a sibling of the header (not inside it) so the mobile
+   position:fixed bottom bar is not trapped by the header's backdrop-filter. */
+.segmented {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+}
+.segmented button {
+  min-height: 38px;
+  padding: 7px 14px;
+  background: transparent;
+  border: 0;
+  border-radius: var(--r-sm);
+  color: var(--ink-3);
+  font-weight: 600;
+  font-size: .88rem;
+}
+.segmented button:hover:not(.active) { background: var(--surface-2); color: var(--ink-2); }
+.segmented button.active {
+  background: var(--acc);
+  color: var(--acc-ink);
+  font-weight: 700;
+  box-shadow: 0 2px 10px var(--acc-glow);
+}
+
+/* ==========================================================================
+   CARDS & GRIDS
+   ========================================================================== */
+
+.glass {
+  background: linear-gradient(180deg, var(--surface) 0%, var(--bg-2) 100%);
+  border: 1px solid var(--line);
+  border-radius: var(--r-xl);
+  padding: clamp(16px, 2vw, 22px);
+  box-shadow: var(--e-2);
+}
+
+.grid { display: grid; gap: 16px; grid-template-columns: 1fr; align-content: start; }
+.stack { display: flex; flex-direction: column; gap: 16px; }
+
+/* Collapsible card: a .glass card whose body starts hidden behind a
+   clickable header — used for settings/creation forms that eat vertical
+   space but aren't needed on every glance. */
+.collapsible-card { padding: 0; overflow: hidden; }
+.collapsible-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: clamp(16px, 2vw, 22px);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  text-align: start;
+}
+.collapsible-head:hover { background: var(--surface-2); }
+.collapsible-head h2 { margin-top: 2px; font-size: 1.1rem; }
+.collapsible-body { padding: 0 clamp(16px, 2vw, 22px) clamp(16px, 2vw, 22px); }
+
+@media (min-width: 760px) {
+  .grid.two   { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .grid .wide { grid-column: 1 / -1; }
+}
+
+/* Card header: title block + trailing action */
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.section-head > div:first-child { min-width: 0; }
+
+.page-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.muted { color: var(--ink-3); font-size: .86rem; }
+
+/* ---- Pills / chips / badges ---- */
+.pill, .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  font-size: .78rem;
+  font-weight: 600;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.chip-list { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.theme-toggle {
+  min-height: var(--tap);
+  min-width: var(--tap);
+  padding: 0;
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+}
+.theme-toggle:hover:not(:disabled) { color: var(--acc); }
+
+/* Registration status colours */
+.status-pill.attending       { background: var(--ok-dim);   color: var(--ok);   border-color: color-mix(in srgb, var(--ok) 30%, transparent); }
+.status-pill.payment_pending { background: var(--warn-dim); color: var(--warn); border-color: color-mix(in srgb, var(--warn) 30%, transparent); }
+.status-pill.standby         { background: var(--info-dim); color: var(--info); border-color: color-mix(in srgb, var(--info) 30%, transparent); }
+.status-pill.cancelled,
+.status-pill.not_attending   { background: var(--bad-dim);  color: var(--bad);  border-color: color-mix(in srgb, var(--bad) 30%, transparent); }
+
+/* ==========================================================================
+   PLAYER — hero, status, metrics
+   ========================================================================== */
+
+.hero-panel {
+  position: relative;
+  display: grid;
+  gap: 20px;
+  overflow: hidden;
+  background:
+    radial-gradient(680px 300px at 88% -30%, color-mix(in srgb, var(--acc) 16%, transparent), transparent 70%),
+    linear-gradient(180deg, var(--surface) 0%, var(--bg-2) 100%);
+  border-color: var(--line-hover);
+}
+/* Pitch-stripe accent along the inline start edge */
+.hero-panel::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 4px;
+  background: linear-gradient(180deg, var(--acc), transparent);
+}
+@media (min-width: 860px) {
+  .hero-panel { grid-template-columns: minmax(0, 1.55fr) minmax(230px, .85fr); align-items: start; }
+}
+.hero-copy { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.hero-panel h2 { font-size: clamp(1.3rem, 1.05rem + 1.1vw, 1.9rem); }
+
+.meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  color: var(--ink-2);
+  font-size: .9rem;
+  font-weight: 500;
+}
+.meta-row span { display: inline-flex; align-items: center; gap: 7px; }
+.meta-row svg { width: 16px; height: 16px; color: var(--acc); flex: none; }
+
+/* The day/date/time is the one thing a player actually needs at a glance,
+   now that it's carrying the heading instead of the fixture's title. */
+.upcoming-date { font-variant-numeric: tabular-nums; }
+
+/* Action pair (אני מגיע / לא מגיע) */
+.actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.actions button { flex: 1 1 auto; min-width: 130px; }
+.section-head .actions button,
+.row-actions button { flex: 0 0 auto; min-width: 0; }
+
+/* Inline notice / banner */
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--acc-dim);
+  border: 1px solid color-mix(in srgb, var(--acc) 22%, transparent);
+  border-radius: var(--r-md);
+  font-size: .88rem;
+  font-weight: 500;
+  color: var(--acc);
+  line-height: 1.5;
+}
+.notice svg { width: 17px; height: 17px; color: var(--acc); flex: none; margin-top: 2px; }
+
+/* Tap-to-reveal caption: a short explanatory note kept out of sight until
+   the trigger is tapped, instead of always sitting next to a heading. */
+.info-note { display: inline-block; position: relative; }
+.info-note-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  min-height: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+.info-note-trigger:hover { color: var(--acc); }
+.info-note-body { margin-top: 6px; max-width: min(90vw, 360px); }
+
+/* Input + button on one row */
+.inline-form { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.inline-form input { flex: 1 1 190px; width: auto; min-width: 0; }
+.inline-form .checkbox-field { flex: 0 0 auto; }
+
+/* Status card in the hero */
+.status-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 18px;
+  background: var(--sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+}
+.status-card strong { font-size: 1.15rem; font-weight: 700; line-height: 1.25; }
+.status-card .pill { background: var(--acc-dim); border-color: color-mix(in srgb, var(--acc) 25%, transparent); color: var(--acc); }
+.status-card .credit-pill { background: var(--warn-dim); border-color: color-mix(in srgb, var(--warn) 25%, transparent); color: var(--warn); }
+
+/* ---- Metrics ---- */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  gap: 10px;
+}
+.metric {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 14px 10px;
+  background: var(--sunken);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md);
+  text-align: center;
+  transition: border-color .18s var(--ease), transform .18s var(--ease);
+}
+.metric:hover { border-color: var(--line); transform: translateY(-2px); }
+.metric svg { width: 17px; height: 17px; color: var(--ink-4); margin-bottom: 3px; }
+.metric strong { font-size: 1.5rem; font-weight: 700; line-height: 1.1; }
+.metric span { font-size: .74rem; font-weight: 600; color: var(--ink-3); }
+
+/* ---- Personal assignment card ---- */
+.personal-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+}
+.personal-card > svg { width: 46px; height: 46px; color: var(--ink-4); }
+.personal-card h3 { font-size: 1.1rem; font-weight: 700; }
+
+/* Pitch + team colour on one line: "מגרש 1 · ● לבן". Wraps as a unit on a
+   narrow screen rather than splitting mid-phrase. */
+.assignment-line {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.assignment-sep { color: var(--ink-4); font-weight: 400; }
+.assignment-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  /* A light rim so a black shirt is still visible against the dark card, and a
+     white one does not bleed into a light one. */
+  border: 1px solid rgba(255,255,255,.45);
+  box-shadow: 0 1px 3px rgba(0,0,0,.4);
+  flex: none;
+}
+/* Full-strength ink: readable for every team colour. */
+.assignment-team { color: var(--ink); }
+.personal-card p { color: var(--ink-3); font-size: .88rem; }
+.mates { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 4px; }
+
+/* ---- Jersey avatar (photo + jersey silhouette) ---- */
+/* Sometimes a plain div, sometimes a real <button> (tap for stats) — reset
+   the button chrome either way so both look identical. */
+.jersey-avatar {
+  appearance: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  /* Wide enough for the jersey, which is sized from the avatar's radius. */
+  width: 63px;
+  padding: 0;
+  min-height: 0;
+  background: transparent;
+  border: 0;
+}
+button.jersey-avatar {
+  cursor: pointer;
+  transition: transform .14s var(--ease);
+}
+button.jersey-avatar:hover { transform: translateY(-2px); }
+button.jersey-avatar:active { transform: scale(.96); }
+.jersey-avatar img {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--surface-3);
+  border: 2px solid var(--line);
+}
+/* The jersey sits BELOW the photo, not over it — absolutely positioned it
+   covered the lower half of the face. Now it is a normal flow item in the
+   column, so photo, shirt and name simply stack. */
+.jersey-avatar svg {
+  /* Width is derived, not chosen: at 63px the collar's 40-unit arc renders at
+     21px radius — exactly the 42px avatar's radius — so the curves match. */
+  width: 63px;
+  height: 41px;
+  /* Pull the shoulders up so the collar meets the avatar's lower edge. */
+  margin-top: -9px;
+  filter: drop-shadow(0 2px 5px rgba(0,0,0,.5));
+  pointer-events: none;
+}
+.jersey-avatar span {
+  font-size: .74rem;
+  font-weight: 600;
+  color: var(--ink-2);
+  text-align: center;
+  line-height: 1.25;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.jersey-avatar.large { width: 111px; }
+.jersey-avatar.large img { width: 74px; height: 74px; }
+/* Same derivation for the 74px avatar: 111px wide -> 37px collar radius. */
+.jersey-avatar.large svg { width: 111px; height: 72px; margin-top: -16px; }
+.jersey-avatar.large span { font-size: .9rem; font-weight: 700; color: var(--ink); }
+
+.avatar {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--surface-3);
+  border: 2px solid var(--line);
+  flex: none;
+}
+
+.avatar-upload {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+.avatar-upload img { width: 64px; height: 64px; }
+.avatar-upload span {
+  font-size: .85rem;
+  color: var(--acc);
+  font-weight: 600;
+}
+.avatar-upload input[type="file"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+/* ==========================================================================
+   PITCHES & TEAMS
+   ========================================================================== */
+
+/* A senior pitch reads from the "בכירים בלבד" checkbox already in the header
+   plus this border tint — a floating badge used to sit at the top corner of
+   the card, on top of the pitch name field. */
+.pitch-card.senior-pitch { border-color: color-mix(in srgb, var(--warn) 34%, transparent); }
+
+/* Public squad view (PitchCard/TeamFormation, read-only): a lineup on a
+   pitch rather than a card with a player list. Distinct from .team-lane-grid
+   below, which is the admin builder's tiny floating-token columns. */
+.pitch-field-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0 0 12px;
+  font-size: clamp(1.3rem, 4vw, 1.7rem);
+  font-weight: 800;
+  text-align: center;
+}
+.pitch-mine-tag {
+  background: var(--acc-dim);
+  border-color: color-mix(in srgb, var(--acc) 30%, transparent);
+  color: var(--acc);
+  font-size: .7rem;
+  font-weight: 700;
+}
+/* Mowed-turf bands + a deeper vignette toward the edges, instead of a flat
+   two-stop gradient — the difference between a diagram and an actual pitch. */
+.pitch-field {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 22px 12px;
+  border-radius: var(--r-lg);
+  border: 3px solid rgba(255,255,255,.5);
+  background:
+    repeating-linear-gradient(180deg, rgba(255,255,255,.05) 0 34px, rgba(0,0,0,.045) 34px 68px),
+    radial-gradient(120% 85% at 50% 0%, #2fa35c 0%, #1f8a4c 42%, #0f6636 100%);
+  box-shadow: inset 0 0 70px rgba(0,0,0,.4), inset 0 2px 0 rgba(255,255,255,.2);
+  overflow: hidden;
+}
+/* A halfway line between each team's lineup — decorative, but it's what
+   makes this read as a pitch, not a background. */
+.formation {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 4px;
+}
+.formation + .formation {
+  border-top: 2px solid rgba(255,255,255,.6);
+}
+/* The team's colour, bold and unmissable — a solid badge, not a small dot
+   next to plain text. */
+.formation-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 18px;
+  border-radius: var(--r-pill);
+  background: var(--team);
+  color: var(--team-ink);
+  font-size: .95rem;
+  font-weight: 800;
+  letter-spacing: .01em;
+  box-shadow: 0 3px 10px rgba(0,0,0,.4), 0 0 0 2px rgba(255,255,255,.55);
+}
+.formation-row {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 28px;
+  width: 100%;
+}
+/* Sometimes a plain div (stats-viewing disabled), sometimes a real <button>
+   (tap for stats) — reset the button chrome either way so both look alike. */
+.formation-player {
+  appearance: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  width: 78px;
+  padding: 0;
+  min-height: 0;
+  background: transparent;
+  border: 0;
+}
+button.formation-player {
+  cursor: pointer;
+  transition: transform .14s var(--ease);
+}
+/* The base button:hover rule stamps a flat theme-toned background behind
+   any button on hover — this one floats directly on the green pitch turf
+   (or a team colour), so that showed up as an ugly pale/white box around
+   the player chip. Lift only; no background swap. */
+button.formation-player:hover:not(:disabled) {
+  background: transparent;
+  border-color: transparent;
+  transform: translateY(-2px);
+}
+button.formation-player:active { transform: scale(.96); }
+.formation-player img {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #fff;
+  border: 2px solid var(--team);
+  box-shadow: 0 2px 8px rgba(0,0,0,.35);
+  flex: none;
+}
+.formation-player span {
+  max-width: 100%;
+  color: #fff;
+  font-size: .74rem;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+  text-shadow: 0 1px 2px rgba(0,0,0,.5);
+  overflow-wrap: break-word;
+}
+
+/* An open roster spot on the pitch — a dashed ring where a player token
+   would sit, same 54px footprint so the row doesn't reflow as it fills. */
+.formation-player-empty-circle {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  border: 2px dashed rgba(255,255,255,.5);
+  flex: none;
+}
+
+.team-lane-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 4px;
+}
+
+/* Desktop team builder: every open pitch side by side instead of one at a
+   time behind tabs — each pitch is the same big green field as the
+   read-only squad view (see .pitch-field below), just editable. */
+.pitch-field-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+.editable-formation {
+  border-radius: var(--r-lg);
+  transition: background .18s var(--ease), outline-color .18s var(--ease);
+}
+.editable-formation.drop-target {
+  outline: 3px dashed var(--team);
+  background: rgba(255,255,255,.14);
+  cursor: pointer;
+}
+.editable-formation .team-color-toggle { margin-inline-end: 2px; }
+/* Wider chips and a bigger gap than the read-only formation-row — this one
+   also carries a score under the name, and names were crowding/overlapping
+   their neighbours at the read-only view's tighter spacing. */
+.editable-formation-row {
+  gap: 20px 30px;
+}
+.editable-formation-row .formation-player { width: 92px; }
+button.formation-player.picked {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+button.formation-player.dragging { opacity: .35; }
+button.formation-player { cursor: grab; }
+/* The read-only score badge (.team-lane-strength) is a light green pill —
+   invisible against the pitch's own green turf. Solid dark instead, so it
+   reads over the turf and over every team colour alike. */
+.formation-strength {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
+  background: rgba(15,20,15,.62);
+  border: 1px solid rgba(255,255,255,.35);
+  font-size: .78rem;
+  font-weight: 800;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+.formation-strength svg { width: 12px; height: 12px; }
+
+/* A team short on players — a heads-up, not an error, so it reads in warn
+   (orange) rather than the danger red used for actual failures elsewhere. */
+.editable-formation.understaffed {
+  outline: 2px solid var(--warn);
+  background: color-mix(in srgb, var(--warn) 10%, transparent);
+}
+.formation-understaffed-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
+  background: var(--warn);
+  color: color-mix(in srgb, var(--warn) 20%, black);
+  font-size: .72rem;
+  font-weight: 800;
+}
+
+/* One team's lane — no box, just its own colour washed on as a translucent
+   tint, with players floating on top of that. No name label — the colour
+   itself, plus the swatch on the toggle button, is the identifier. */
+.team-lane {
+  --team: var(--acc);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 4px;
+  border-radius: var(--r-lg);
+  background: color-mix(in srgb, var(--team) 15%, transparent);
+  transition: background .18s var(--ease), outline-color .18s var(--ease);
+}
+/* A lane that can receive the player being held — the whole lane is the
+   drop target, tap or drop anywhere on it. */
+.team-lane.drop-target {
+  background: color-mix(in srgb, var(--team) 30%, transparent);
+  outline: 2px dashed var(--team);
+  cursor: pointer;
+}
+
+/* Near-black team colours (see isDarkColor() in main.jsx): a light wash of
+   black is indistinguishable from plain grey, so invert instead — a near-
+   solid fill with light text/icons, closer to how a black jersey reads. */
+.team-lane.team-lane-dark {
+  background: color-mix(in srgb, var(--team) 80%, transparent);
+  color: #f8fafc;
+}
+.team-lane.team-lane-dark.drop-target {
+  background: color-mix(in srgb, var(--team) 92%, transparent);
+  outline: 2px dashed var(--acc);
+}
+/* 80% still lets enough of the light theme's pale card background bleed
+   through to wash the near-black fill out toward the team colour's own hue
+   (brownish, for the default "black" swatch) — too light for the hardcoded
+   white text above. The dark theme's own near-black backdrop hid this;
+   light theme needs the fill pushed closer to fully solid instead. */
+:root[data-theme="light"] .team-lane.team-lane-dark {
+  background: color-mix(in srgb, var(--team) 95%, transparent);
+}
+:root[data-theme="light"] .team-lane.team-lane-dark.drop-target {
+  background: color-mix(in srgb, var(--team) 98%, transparent);
+}
+.team-lane-dark .team-color-toggle { --btn-bg: rgba(255,255,255,.15); color: inherit; }
+/* .drag-player-card is a <button>, and the base button rule hardcodes its
+   own `color: var(--btn-ink)` — that breaks normal inheritance from
+   .team-lane-dark, so the name/score default back to dark ink even on the
+   near-black fill. Override the button's own colour, not just its text. */
+.team-lane-dark .drag-player-card { color: inherit; }
+.team-lane-dark .drag-player-card small { color: rgba(248,250,252,.75); }
+.team-lane-dark .drag-player-card img { border-color: rgba(248,250,252,.4); }
+.team-lane-dark .team-lane-hint { color: rgba(248,250,252,.6); }
+
+.team-lane-head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+}
+/* A badge, not plain text — at a glance this must not read as just another
+   player score sitting under the roster. */
+.team-lane-strength {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
+  background: var(--acc-dim);
+  border: 1px solid var(--acc-glow);
+  font-size: .78rem;
+  font-weight: 800;
+  color: var(--acc);
+  font-variant-numeric: tabular-nums;
+}
+.team-lane-strength svg { width: 12px; height: 12px; }
+
+/* Flag "needs players" with the outline ring + the tag below alone — an
+   unconditional background here used to blot out the team's own colour
+   wash entirely (and the near-solid fill for a dark team), so an
+   understaffed lane looked like a plain generic warning box instead of
+   still reading as that team. */
+.team-lane.understaffed {
+  outline: 2px solid var(--warn);
+}
+.team-lane-understaffed-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: var(--r-pill);
+  background: var(--warn);
+  color: color-mix(in srgb, var(--warn) 20%, black);
+  font-size: .68rem;
+  font-weight: 800;
+}
+
+.team-lane-players {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+.team-lane-hint {
+  padding: 10px 4px;
+  color: var(--ink-4);
+  font-size: .72rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.fixed-color-swatch {
+  width: 12px;
+  height: 22px;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+  flex: none;
+  align-self: center;
+}
+
+.team-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-inline-end: 4px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  flex: none;
+  vertical-align: middle;
+}
+
+
+/* ---- Standings ---- */
+.standings {
+  margin-top: 16px;
+  border-top: 1px solid var(--line-soft);
+  padding-top: 6px;
+}
+.standing-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 2px;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: .88rem;
+}
+.standing-row:last-child { border-bottom: 0; }
+.standing-row strong { flex: 1; min-width: 0; font-weight: 600; }
+.standing-row span { color: var(--ink-3); font-weight: 600; white-space: nowrap; }
+.standings .standing-row:first-child strong { color: var(--acc); }
+.player-tally-row span { display: inline-flex; align-items: center; gap: 4px; }
+.player-tally-row svg { width: 14px; height: 14px; color: var(--ink-4); }
+
+.team-name-cell { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.team-card-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.team-card-head h3 { margin: 0; font-size: 1rem; }
+
+/* ---- Leaderboard ---- */
+.leaderboard { display: flex; flex-direction: column; }
+.leaderboard > div {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 11px 2px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.leaderboard > div:last-child { border-bottom: 0; }
+.leaderboard svg { width: 16px; height: 16px; color: var(--ink-4); flex: none; }
+.leaderboard strong {
+  flex: 1;
+  min-width: 0;
+  font-size: .92rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.leaderboard span {
+  min-width: 30px;
+  padding: 2px 9px;
+  background: var(--acc-dim);
+  border-radius: var(--r-pill);
+  color: var(--acc);
+  font-weight: 700;
+  font-size: .85rem;
+  text-align: center;
+}
+/* Top three get medal accents */
+.leaderboard > div:nth-child(1) svg { color: var(--acc); }
+.leaderboard > div:nth-child(2) svg { color: #cbd5e1; }
+.leaderboard > div:nth-child(3) svg { color: #d08c4a; }
+
+/* ---- Standouts ---- */
+.standouts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 165px), 1fr));
+  gap: 12px;
+}
+.standout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 16px 12px;
+  background: var(--sunken);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-lg);
+  text-align: center;
+  transition: border-color .18s var(--ease), transform .18s var(--ease);
+}
+.standout:hover { border-color: color-mix(in srgb, var(--acc) 35%, transparent); transform: translateY(-2px); }
+.standout img {
+  width: 52px; height: 52px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--surface-3);
+  border: 2px solid var(--acc);
+}
+.standout strong { font-size: .92rem; font-weight: 700; }
+.standout small { color: var(--ink-3); }
+
+/* ==========================================================================
+   FORMS
+   ========================================================================== */
+
+.form-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
+@media (min-width: 620px) {
+  .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .form-grid > button { grid-column: 1 / -1; }
+  .form-grid > .form-error, .form-grid > .form-success { grid-column: 1 / -1; }
+  /* Was only declared in a narrow-phone-only media block below, so a wide
+     field (multi-line text, a list of radio/checkbox options, a scale's
+     row of buttons) got squeezed into one half of the 2-column grid on
+     every other screen size instead of spanning both. */
+  .form-grid > .field-wide { grid-column: 1 / -1; }
+}
+.form-grid.compact { gap: 9px; grid-template-columns: 1fr auto auto; align-items: center; }
+.form-grid.compact > button { grid-column: auto; }
+
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.field > span {
+  font-size: .76rem;
+  font-weight: 700;
+  color: var(--ink-3);
+  letter-spacing: .02em;
+}
+.field-hint { font-size: .74rem; color: var(--warn); }
+
+.checkbox-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  min-height: var(--tap);
+  background: var(--sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  font-size: .88rem;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+  transition: border-color .18s var(--ease), background .18s var(--ease);
+}
+.checkbox-field:hover { border-color: var(--line-hover); background: var(--surface-2); }
+.checkbox-field:has(input:checked) {
+  border-color: color-mix(in srgb, var(--acc) 40%, transparent);
+  background: var(--acc-dim);
+  color: var(--acc);
+}
+
+/* Stepper: −  [n]  + */
+.stepper { display: flex; align-items: center; gap: 8px; }
+.stepper button {
+  width: 42px;
+  min-width: 42px;
+  padding: 0;
+  font-size: 1.2rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--acc);
+}
+.stepper input { text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+.form-error, .form-success {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 12px 14px;
+  border-radius: var(--r-md);
+  font-size: .88rem;
+  font-weight: 600;
+}
+.form-error   { background: var(--bad-dim); border: 1px solid color-mix(in srgb, var(--bad) 30%, transparent); color: var(--bad); }
+.form-success { background: var(--ok-dim);  border: 1px solid color-mix(in srgb, var(--ok) 30%, transparent);  color: var(--ok); }
+
+/* ==========================================================================
+   LOGIN & SPLASH
+   ========================================================================== */
+
+.login-page {
+  position: relative;
+  min-height: 100vh;
+  width: min(470px, 100%);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 16px;
+  padding: 32px clamp(16px, 4vw, 24px);
+}
+.login-page > .theme-toggle {
+  position: absolute;
+  top: max(16px, env(safe-area-inset-top));
+  inset-inline-end: clamp(16px, 4vw, 24px);
+}
+.login-card {
+  padding: clamp(24px, 4vw, 34px);
+  border-radius: var(--r-xl);
+  box-shadow: var(--e-3);
+}
+/* Brand mark above the heading */
+.login-card > .eyebrow::before {
+  content: "⚽";
+  display: block;
+  font-size: 2.4rem;
+  line-height: 1;
+  margin-bottom: 14px;
+  filter: drop-shadow(0 0 18px var(--acc-glow));
+}
+.login-card h1 { margin-bottom: 22px; }
+.login-grid { grid-template-columns: 1fr; }
+.login-grid button { grid-column: 1 / -1; }
+.login-card small {
+  display: block;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line-soft);
+  color: var(--ink-4);
+  line-height: 1.6;
+}
+
+.splash {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 60vh;
+  margin: 40px auto;
+  width: min(460px, calc(100% - 32px));
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--ink-2);
+  text-align: center;
+}
+.splash svg {
+  width: 22px; height: 22px;
+  color: var(--acc);
+  animation: pulse 1.5s var(--ease) infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: .35; transform: scale(.9); }
+  50%      { opacity: 1;   transform: scale(1.1); }
+}
+
+/* ==========================================================================
+   ADMIN
+   ========================================================================== */
+
+/* Styled to read as navigation (a track holding tabs), matching the
+   look of the bottom .segmented nav rather than a plain content card. */
+.admin-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.admin-tabs::-webkit-scrollbar { display: none; }
+.admin-tabs button {
+  flex: none;
+  min-height: 38px;
+  padding: 7px 15px;
+  background: transparent;
+  border: 0;
+  border-radius: var(--r-sm);
+  color: var(--ink-3);
+  font-weight: 600;
+  font-size: .88rem;
+}
+.admin-tabs button:hover:not(.active) { background: var(--surface-2); color: var(--ink-2); }
+.tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  margin-inline-start: 6px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--warn);
+  color: color-mix(in srgb, var(--warn) 22%, black);
+  font-size: .72rem;
+  font-weight: 700;
+}
+.admin-tabs button.active {
+  background: var(--acc);
+  color: var(--acc-ink);
+  font-weight: 700;
+  box-shadow: 0 2px 10px var(--acc-glow);
+}
+
+/* Match status flow */
+/* ==========================================================================
+   MATCH FLOW — a real stepper: numbered nodes on a connecting rail.
+   Vertical on mobile (reads as a sequence, one tap target per row),
+   horizontal on desktop where there is width for it.
+   ========================================================================== */
+
+.flow-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+.flow-head h2 { font-size: 1.15rem; }
+.flow-progress {
+  flex: none;
+  padding: 5px 11px;
+  background: var(--acc-dim);
+  border-radius: var(--r-pill);
+  font-size: .76rem;
+  font-weight: 700;
+  color: var(--acc);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The match state list: a set of places the fixture can be, not a pipeline.
+   No rail, no numbers, no progress fill — any state is reachable from any other. */
+.state-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.state-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 7px 10px;
+  background: transparent;
+  border: 0;
+  border-radius: var(--r-md);
+  text-align: start;
+  min-height: 46px;
+}
+.state-option:hover:not(:disabled) { background: var(--surface-2); }
+.state-option:disabled { cursor: default; opacity: 1; }
+
+/* Marks the state you are in — a check, never a step number. */
+.state-dot {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--bg-2);
+  border: 2px solid var(--line);
+  color: var(--ink-4);
+  transition: background .2s var(--ease), border-color .2s var(--ease), color .2s var(--ease);
+}
+
+.flow-label { flex: 1; min-width: 0; font-size: .92rem; font-weight: 600; color: var(--ink-3); }
+.flow-hint {
+  flex: none;
+  font-size: .72rem;
+  font-weight: 600;
+  color: var(--ink-4);
+  opacity: 0;
+  transition: opacity .15s var(--ease);
+}
+.state-option:hover .flow-hint,
+.audience-toggle:hover .flow-hint { opacity: 1; }
+
+.state-row.current .state-dot {
+  background: var(--acc);
+  border-color: var(--acc);
+  color: var(--acc-ink);
+  box-shadow: 0 0 0 4px var(--acc-dim);
+}
+.state-row.current .flow-label { color: var(--ink); font-weight: 700; }
+.state-row.current .flow-hint { opacity: 1; color: var(--acc); }
+
+/* ---- registration audiences: independent switches, visually distinct
+       from the state list above so they don't read as further stages ---- */
+.audience-toggles {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line-soft);
+}
+.audience-toggles .eyebrow { margin-bottom: 4px; }
+
+.audience-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 8px 10px;
+  background: transparent;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md);
+  text-align: start;
+  min-height: 44px;
+}
+.audience-toggle:hover { background: var(--surface-2); }
+.audience-toggle.on {
+  border-color: var(--acc);
+  background: var(--acc-dim);
+}
+.audience-toggle.on .state-dot {
+  background: var(--acc);
+  border-color: var(--acc);
+  color: var(--acc-ink);
+}
+.audience-toggle.on .flow-label { color: var(--ink); font-weight: 700; }
+.audience-toggle.on .flow-hint { opacity: 1; color: var(--acc); }
+
+/* Three linked percentage sliders (rank weights) — same markup and the same
+   input[type=range] styling at every width, so "dynamic" behaves alike on
+   desktop and mobile; only the card's own padding responds to screen size. */
+.rank-weights {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin-top: 14px;
+}
+.rank-weight-row { display: flex; flex-direction: column; gap: 4px; }
+.rank-weight-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  font-size: .88rem;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.rank-weight-label strong { font-variant-numeric: tabular-nums; color: var(--acc); }
+
+/* ---- desktop: states side by side, audiences stay as wide switches ---- */
+@media (min-width: 860px) {
+  .state-list { flex-direction: row; gap: 4px; }
+  .state-row { flex: 1; min-width: 0; }
+  .state-option {
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 4px;
+    text-align: center;
+    min-height: 0;
+  }
+  /* Scoped to .state-option: the audience toggles below share .flow-label but
+     stay horizontal rows, so a full-width centred label would wreck them. */
+  .state-option .flow-label {
+    flex: none;
+    width: 100%;
+    font-size: .78rem;
+    text-align: center;
+    overflow-wrap: anywhere;
+  }
+  .state-option .flow-hint { display: none; }
+  .audience-toggles { flex-direction: row; align-items: center; flex-wrap: wrap; }
+  .audience-toggles .eyebrow { width: 100%; margin-bottom: 0; }
+  .audience-toggle { flex: 1; min-width: 180px; }
+}
+
+/* Generic admin rows */
+.admin-list { display: flex; flex-direction: column; gap: 8px; }
+.admin-list-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--sunken);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md);
+  transition: border-color .16s var(--ease);
+}
+.admin-list-row:hover { border-color: var(--line); }
+.admin-list-row > div { min-width: 0; }
+.admin-list-row strong { font-size: .92rem; font-weight: 600; display: block; }
+.admin-list-row small { display: block; }
+
+.row-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-inline-start: auto; }
+.row-actions button { min-height: 38px; padding: 8px 13px; font-size: .84rem; }
+
+/* Registration queue */
+.queue-groups { display: grid; gap: 16px; }
+.queue-group.assigned     { border-color: color-mix(in srgb, var(--ok) 28%, transparent); }
+.queue-group.standby-group{ border-color: color-mix(in srgb, var(--warn) 28%, transparent); }
+.queue-group.assigned .eyebrow      { color: var(--ok); }
+.queue-group.standby-group .eyebrow { color: var(--warn); }
+
+.queue-row { gap: 12px; }
+.queue-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px; height: 30px;
+  flex: none;
+  background: var(--surface-2);
+  border-radius: 50%;
+  font-size: .8rem;
+  font-weight: 700;
+  color: var(--ink-3);
+}
+.queue-number.drag-handle {
+  width: auto;
+  min-width: 30px;
+  padding: 0 6px;
+  gap: 3px;
+  border-radius: var(--r-pill);
+  cursor: grab;
+  user-select: none;
+}
+.queue-number.drag-handle:active { cursor: grabbing; }
+.queue-row.drag-picked {
+  border-color: var(--acc);
+  background: var(--acc-dim);
+  box-shadow: 0 0 0 2px var(--acc-dim);
+}
+.queue-row.drag-picked .queue-number.drag-handle {
+  background: var(--acc);
+  color: var(--acc-ink);
+}
+
+/* Game-day replacement: tap a standby row to mark it (warn colour, matches
+   the standby-group accent elsewhere on this tab), then any approved row
+   becomes an obvious tap target until the admin picks one or cancels. */
+.queue-row-standby { cursor: pointer; }
+.queue-row.standby-picked {
+  border-color: var(--warn);
+  background: var(--warn-dim);
+  box-shadow: 0 0 0 2px var(--warn-dim);
+}
+.queue-row.replace-target { cursor: pointer; }
+.queue-row.replace-target:hover { border-color: var(--acc); }
+
+.registration-summary { margin-bottom: 14px; }
+
+/* Fixture picker */
+.fixture-context { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; }
+.fixture-context select { width: auto; min-width: 210px; }
+.fixture-row {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 3px;
+  width: 100%;
+  padding: 13px 15px;
+  background: var(--sunken);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md);
+  text-align: start;
+  white-space: normal;
+}
+.fixture-row strong { font-size: .95rem; font-weight: 700; }
+.fixture-row span { font-size: .84rem; color: var(--ink-2); }
+.fixture-row.selected {
+  background: var(--acc-dim);
+  border-color: var(--acc);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--acc) 20%, transparent);
+}
+.fixture-row.selected strong { color: var(--acc); }
+
+/* ==========================================================================
+   TEAM BUILDER — drag & drop
+   ========================================================================== */
+
+/* One untitled bar for fixture picker + balance actions + open-pitch form —
+   no section headings, the controls speak for themselves. */
+.admin-teams-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 14px;
+}
+.admin-teams-toolbar select,
+.admin-teams-toolbar input,
+.admin-teams-toolbar button {
+  min-height: 38px;
+  font-size: .84rem;
+}
+.admin-teams-toolbar button { padding: 8px 12px; }
+.admin-teams-toolbar-fixture {
+  display: flex;
+  align-items: center;
+  min-height: 38px;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: .88rem;
+}
+.admin-teams-toolbar-pitch-name { width: auto; min-width: 90px; max-width: 140px; }
+.admin-teams-toolbar .checkbox-field {
+  min-height: 38px;
+  padding: 6px 10px;
+  gap: 6px;
+  font-size: .8rem;
+  white-space: nowrap;
+}
+.admin-teams-toolbar-sep {
+  width: 1px;
+  align-self: stretch;
+  min-height: 22px;
+  background: var(--line);
+  margin-inline: 2px;
+}
+
+.drop-pool { border-style: dashed; border-color: var(--line); }
+
+/* Swap panel: two comboboxes and a button on one line where room allows,
+   wrapping to stacked rows on narrow screens. */
+.player-swap-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.player-swap-icon { flex: none; color: var(--ink-3); }
+.player-swap-row button { flex: none; }
+.player-swap-actions { justify-content: flex-end; margin-top: 10px; }
+
+/* A searchable stand-in for <select> — type-to-filter input, dropdown
+   result list. Used wherever picking one player out of a long list would
+   otherwise mean scrolling a native <select>. */
+.player-combobox { position: relative; flex: 1 1 160px; min-width: 0; }
+.player-combobox-field { position: relative; display: flex; align-items: center; }
+.player-combobox-field input { padding-inline-end: 32px; }
+.player-combobox-clear {
+  position: absolute;
+  inset-inline-end: 4px;
+  width: 26px;
+  height: 26px;
+  min-height: 0;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  color: var(--ink-3);
+  border-radius: var(--r-pill);
+}
+.player-combobox-clear:hover { color: var(--ink); background: var(--surface-2); }
+.player-combobox-list {
+  position: absolute;
+  top: calc(100% + 4px);
+  inset-inline: 0;
+  z-index: 30;
+  max-height: 260px;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: var(--e-2);
+  padding: 6px;
+}
+.player-combobox-group-label {
+  padding: 6px 10px 2px;
+  font-size: .7rem;
+  font-weight: 700;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.player-combobox-option {
+  display: block;
+  width: 100%;
+  text-align: start;
+  padding: 8px 10px;
+  min-height: 0;
+  background: transparent;
+  border: 0;
+  border-radius: var(--r-sm);
+  font-size: .88rem;
+  font-weight: 600;
+}
+.player-combobox-option:hover { background: var(--surface-2); }
+.player-combobox-empty { padding: 10px; color: var(--ink-3); font-size: .84rem; text-align: center; }
+.drag-player-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+
+/* A player, floating: avatar, name, score — no card behind it. */
+.drag-player-card {
+  appearance: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  width: min(84px, 100%);
+  padding: 2px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  user-select: none;
+  transition: transform .14s var(--ease);
+}
+.drag-player-card:hover { transform: translateY(-2px); }
+/* Same fix as .formation-player above: the base button:hover background
+   swap looked like a stray white box behind a chip meant to float with no
+   card behind it. Left as its own rule (transform untouched) so the
+   prefers-reduced-motion override below, which only resets transform,
+   still wins there. */
+.drag-player-card:hover:not(:disabled) {
+  background: transparent;
+  border-color: transparent;
+}
+.drag-player-card:active { transform: scale(.95); }
+/* Native HTML5 drag only fires from mouse input, so this affordance and the
+   dragging/drop-target feedback below are effectively desktop-only already —
+   touch keeps using the tap-to-move flow with no cursor to show. */
+.drag-player-card { cursor: grab; }
+.drag-player-card.dragging { opacity: .35; }
+/* The ring picks up the team colour (falls back to neutral in the bench,
+   where --team is unset). */
+.drag-player-card img {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--surface-3);
+  border: 2px solid var(--team, var(--line));
+  flex: none;
+}
+.drag-player-card strong {
+  max-width: 100%;
+  font-size: .7rem;
+  font-weight: 600;
+  line-height: 1.15;
+  text-align: center;
+  overflow-wrap: break-word;
+}
+.drag-player-card small { font-size: .66rem; font-weight: 700; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.drag-player-card.picked img { outline: 3px solid var(--acc); outline-offset: 2px; }
+
+/* An open roster spot in the lane — a dashed ring where a player token would
+   sit, same 36px footprint as .drag-player-card img. */
+.drag-player-card-empty-circle {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px dashed var(--line-hover);
+  flex: none;
+}
+.team-lane-dark .drag-player-card-empty-circle { border-color: rgba(248,250,252,.4); }
+
+.empty-drop {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 16px 12px;
+  border: 1px dashed var(--line);
+  border-radius: var(--r-md);
+  color: var(--ink-4);
+  font-size: .84rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.pitch-name-editor { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+.pitch-name-editor input { width: auto; min-width: 150px; flex: 1 1 150px; font-weight: 700; }
+
+/* Pitch card header: name, senior toggle and close-pitch all on one compact
+   line — this used to also carry a team/player-count pill and wrap onto
+   several lines, which ate space better spent on the roster below. */
+.pitch-head {
+  flex-wrap: nowrap;
+  gap: 8px;
+}
+.pitch-head .pitch-name-editor {
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 6px;
+}
+.pitch-head .pitch-name-editor input {
+  min-width: 0;
+  flex: 1 1 60px;
+  font-size: .85rem;
+  padding: 6px 8px;
+}
+.pitch-head .pitch-name-editor button {
+  flex: none;
+  min-width: 0;
+  padding: 6px 10px;
+  font-size: .78rem;
+  min-height: 0;
+}
+.pitch-head .pitch-actions {
+  flex: none;
+  flex-wrap: nowrap;
+  gap: 6px;
+}
+.pitch-head .pitch-actions .checkbox-field {
+  flex: none;
+  min-width: 0;
+  min-height: 0;
+  padding: 5px 9px;
+  gap: 5px;
+  font-size: .72rem;
+  white-space: nowrap;
+}
+.pitch-head .pitch-actions .checkbox-field input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+}
+.pitch-head .pitch-actions button.danger {
+  flex: none;
+  min-width: 0;
+  min-height: 0;
+  padding: 5px 9px;
+  font-size: .72rem;
+  white-space: nowrap;
+}
+.pitch-head .pitch-actions button.danger svg { width: 13px; height: 13px; }
+
+/* ==========================================================================
+   RESULTS
+   ========================================================================== */
+
+.game-row { flex-direction: column; align-items: stretch; gap: 10px; }
+.game-row .standing-row { border-bottom: 0; padding: 0; gap: 12px; }
+.game-row .standing-row strong { font-size: .95rem; font-weight: 700; }
+.game-row .standing-row button:last-child { margin-inline-start: auto; }
+.game-events-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 0;
+  padding: 4px 10px;
+  font-size: .82rem;
+}
+
+.goal-events-list { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.goal-events-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 11px;
+  background: var(--surface-2);
+  border-radius: var(--r-xs);
+  font-size: .84rem;
+  color: var(--ink-2);
+}
+.goal-events-list svg { width: 14px; height: 14px; color: var(--acc); flex: none; }
+
+.goal-team-group { display: flex; flex-direction: column; gap: 8px; }
+.goal-team-label { font-size: .82rem; font-weight: 700; color: var(--ink-3); }
+
+.goal-event-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 9px;
+  padding: 12px;
+  background: var(--sunken);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md);
+}
+.goal-event-row select { flex: 1 1 160px; min-width: 0; }
+.goal-event-row .own-goal-field { flex: 0 0 auto; }
+.stack.goal-events { gap: 14px; }
+
+/* ==========================================================================
+   TABLES
+   ========================================================================== */
+
+.table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+table { width: 100%; border-collapse: separate; border-spacing: 0 6px; font-size: .88rem; }
+thead th {
+  padding: 0 10px 8px;
+  text-align: start;
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .07em;
+  color: var(--ink-4);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+tbody tr { background: var(--sunken); }
+tbody tr:hover { background: var(--surface-2); }
+tbody td {
+  padding: 8px 10px;
+  border-block: 1px solid var(--line-soft);
+  vertical-align: middle;
+}
+tbody td:first-child {
+  border-inline-start: 1px solid var(--line-soft);
+  border-start-start-radius: var(--r-md);
+  border-end-start-radius: var(--r-md);
+}
+tbody td:last-child {
+  border-inline-end: 1px solid var(--line-soft);
+  border-start-end-radius: var(--r-md);
+  border-end-end-radius: var(--r-md);
+}
+tbody input:not([type="range"]), tbody select { min-height: 38px; padding: 7px 11px; font-size: .85rem; min-width: 108px; }
+tbody select { padding-inline-end: 32px; background-position: left 9px center; }
+tbody .rating-stepper { min-width: 96px; }
+tbody input[type="checkbox"] { min-width: 0; }
+tbody button { min-height: 38px; padding: 8px 14px; font-size: .84rem; }
+
+/* ==========================================================================
+   TOAST & MODAL
+   ========================================================================== */
+
+.toast {
+  position: fixed;
+  /* Centred with symmetric insets + margin:auto rather than
+     inset-inline-start + translateX: in RTL the logical start resolves to
+     `right`, so the physical -50% transform pushed the toast off-screen. */
+  left: 0;
+  right: 0;
+  bottom: 24px;
+  width: fit-content;
+  max-width: min(560px, calc(100% - 24px));
+  margin-inline: auto;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: var(--e-3);
+  animation: toast-in .28s var(--ease);
+}
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.toast strong {
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
+  font-size: .74rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.toast span { flex: 1; font-size: .89rem; font-weight: 500; }
+.toast button { min-height: 34px; padding: 5px 12px; font-size: .8rem; }
+.toast.success { border-color: color-mix(in srgb, var(--ok) 40%, transparent); }
+.toast.success strong { background: var(--ok-dim); color: var(--ok); }
+.toast.error { border-color: color-mix(in srgb, var(--bad) 40%, transparent); }
+.toast.error strong { background: var(--bad-dim); color: var(--bad); }
+
+body.modal-open {
+  position: fixed;
+  left: 0;
+  right: 0;
+  overflow: hidden;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  height: 100dvh;
+  z-index: 100;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  overflow: hidden;
+  padding: 20px;
+  padding-top: max(20px, env(safe-area-inset-top));
+  background: rgba(6,9,13,.72);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: fade-in .2s var(--ease);
+}
+/* Confirm/alert dialogs are short and fixed-height, so top-aligning them (the
+   default above, needed for the taller scrollable dialogs like the image
+   cropper and player stats) just leaves them stranded near the top of the
+   screen — center those instead. */
+.modal-backdrop:has([role="alertdialog"]) {
+  align-items: center;
+}
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+.confirm-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: min(430px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  padding: 28px 24px;
+  text-align: center;
+  box-shadow: var(--e-3);
+  animation: pop-in .26s var(--ease);
+}
+@keyframes pop-in {
+  from { opacity: 0; transform: scale(.94) translateY(10px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* Corner close button for a modal that isn't purely confirm/cancel. */
+.modal-close {
+  position: absolute;
+  top: 12px;
+  inset-inline-end: 12px;
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0;
+  gap: 0;
+  justify-content: center;
+  --btn-bg: var(--surface-2);
+  color: var(--ink-3);
+}
+
+.player-stats-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: min(400px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  padding: 30px 22px 24px;
+  text-align: center;
+  box-shadow: var(--e-3);
+  animation: pop-in .26s var(--ease);
+}
+.player-stats-avatar { width: 72px; height: 72px; }
+/* Always 3-across on one line, even on a narrow phone — auto-fit's usual
+   wrapping (see .stat-grid above) meant the 3rd stat dropped to its own row
+   once the modal got narrow enough. */
+.player-stats-card .stat-grid {
+  grid-template-columns: repeat(3, 1fr);
+  margin-top: 4px;
+  gap: 6px;
+}
+.player-stats-card .metric { padding: 10px 4px; }
+.player-stats-card .metric strong { font-size: 1.15rem; }
+.player-stats-card .metric span { font-size: .64rem; }
+.player-stats-history {
+  width: 100%;
+  margin-top: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-soft);
+  text-align: start;
+}
+.player-stats-history .standing-row:last-child { border-bottom: 0; }
+
+/* ==========================================================================
+   PLAYER PROFILE — full-screen overlay, not a centered modal, so it reads
+   as its own page rather than a small dialog floating over the list.
+   ========================================================================== */
+.profile-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 110;
+  overflow-y: auto;
+  background: var(--bg);
+  animation: fade-in .18s var(--ease);
+}
+.profile-overlay-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: max(14px, env(safe-area-inset-top)) 16px 12px;
+  background: rgba(var(--chrome-rgb), .92);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  border-bottom: 1px solid var(--line);
+}
+.profile-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  color: var(--ink-1);
+  font-weight: 700;
+  font-size: .92rem;
+}
+.profile-back:hover { background: var(--surface-3); border-color: var(--line-hover); }
+.profile-overlay-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: min(680px, 100%);
+  margin: 0 auto;
+  padding: 16px 16px calc(32px + env(safe-area-inset-bottom));
+}
+.profile-hero {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.profile-hero-avatar { width: 56px; height: 56px; flex: none; }
+.profile-hero h2 { margin: 0 0 2px; }
+.profile-hero .pill { margin-inline-start: auto; flex: none; }
+
+.profile-info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.info-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  background: var(--sunken);
+  border-radius: var(--r-sm);
+}
+.info-stat span { font-size: .72rem; color: var(--ink-4); }
+.info-stat strong { font-size: .96rem; color: var(--ink-1); }
+
+/* Groups within the profile's "עריכת פרטים" card (name/phone, role +
+   membership flags, ratings) — each gets its own labelled block with real
+   air between them instead of every field running into the next. */
+.profile-edit-group { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line-soft); }
+.profile-edit-group:first-of-type { margin-top: 14px; padding-top: 0; border-top: 0; }
+.profile-edit-subhead {
+  margin: 0 0 10px;
+  font-size: .76rem;
+  font-weight: 700;
+  color: var(--ink-3);
+}
+
+.note-composer { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+.note-composer textarea { resize: vertical; min-height: 56px; }
+.note-composer button { align-self: flex-end; }
+.note-list { display: flex; flex-direction: column; gap: 10px; }
+.note-item {
+  padding: 10px 12px;
+  background: var(--sunken);
+  border-radius: var(--r-sm);
+}
+.note-item p { margin: 0 0 4px; white-space: pre-wrap; }
+.note-item small { color: var(--ink-4); font-size: .74rem; }
+
+.crop-card { width: min(360px, 100%); }
+.crop-frame { position: relative; display: inline-block; overflow: hidden; border-radius: var(--r-sm); }
+.crop-canvas {
+  display: block;
+  border-radius: var(--r-sm);
+  background: var(--surface-3);
+  touch-action: none;
+  cursor: grab;
+}
+.crop-canvas:active { cursor: grabbing; }
+.crop-loading { border-radius: var(--r-sm); }
+/* Darkens everything outside the circular crop area, which is the only part
+   that ends up visible once the image renders behind border-radius:50%. */
+.crop-circle-mask {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  box-shadow: 0 0 0 9999px rgba(6,9,13,.6);
+  border: 2px solid rgba(255,255,255,.5);
+  pointer-events: none;
+}
+.crop-controls { display: flex; align-items: center; gap: 10px; width: 100%; }
+.crop-zoom { display: flex; align-items: center; gap: 8px; flex: 1 1 auto; color: var(--ink-3); }
+.crop-zoom input[type="range"] { flex: 1 1 auto; }
+.confirm-card > svg { color: var(--acc); filter: drop-shadow(0 0 14px var(--acc-glow)); }
+.confirm-card p { color: var(--ink-2); font-size: .92rem; line-height: 1.6; }
+.confirm-card .actions { width: 100%; margin-top: 6px; }
+
+/* ==========================================================================
+   RESPONSIVE — mobile refinements
+   ========================================================================== */
+
+@media (max-width: 759px) {
+  body { font-size: 14.5px; }
+
+  .app-shell { padding-bottom: 28px; }
+
+  /* Top bar stacks; nav becomes a full-width scroller */
+  .topbar {
+    gap: 10px;
+    margin-bottom: 12px;
+    padding: 12px 14px;
+    border-radius: 0 0 var(--r-lg) var(--r-lg);
+  }
+  .topbar > div:first-child { flex: 1 1 100%; }
+  /* Nav itself lives in the fixed bottom bar — see PWA MOBILE SHELL below. */
+  .toolbar { width: 100%; gap: 8px; display: flex; align-items: center; }
+
+  .glass { padding: 13px; border-radius: var(--r-lg); }
+  .hero-panel { gap: 12px; }
+
+  /* Every stacked card and every card's title block carried full desktop
+     spacing on mobile too — on a 375-430px screen, 3-4 cards each losing
+     16px above/below plus a 16px title margin is most of "why does one
+     small section take up a fifth of the screen". */
+  .stack { gap: 10px; }
+  .grid { gap: 10px; }
+  .section-head { margin-bottom: 10px; gap: 8px; }
+
+  /* Full-width primary actions are easier to hit */
+  .actions button { flex: 1 1 100%; }
+  .section-head .actions button { flex: 1 1 auto; }
+
+  .stat-grid { grid-template-columns: repeat(auto-fit, minmax(84px, 1fr)); gap: 8px; }
+  .metric { padding: 9px 6px; }
+  .metric strong { font-size: 1.15rem; }
+  .metric span { font-size: .7rem; }
+
+  .status-card { padding: 13px; gap: 8px; }
+  .status-card strong { font-size: 1.05rem; }
+
+  .notice { padding: 9px 11px; font-size: .82rem; gap: 8px; }
+  .info-note-body { margin-top: 4px; }
+  .empty-drop { padding: 11px 10px; font-size: .8rem; }
+
+  .login-card { padding: 18px; }
+  .login-card h1 { margin-bottom: 14px; }
+
+  .pagination { margin-top: 10px; padding-top: 10px; gap: 8px; }
+
+  .row-actions { width: 100%; margin-inline-start: 0; }
+  .row-actions button { flex: 1 1 auto; }
+
+  /* Closed-list rows (יצאו מהרשימה) are often just a single icon-only
+     "view profile" button — the generic full-width/stretchy rule above is
+     meant for rows with real text actions, and otherwise pushes this lone
+     icon under the name onto its own oversized line. */
+  .closed-row .row-actions { width: auto; flex: 0 0 auto; margin-inline-start: auto; }
+  .closed-row .row-actions button { flex: 0 0 auto; }
+  .row-actions .icon-btn {
+    width: 34px;
+    min-width: 34px;
+    height: 34px;
+    min-height: 34px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  /* One line: drop the "אתה עורך עכשיו" label, shrink+truncate the title,
+     drop the field label text, shrink the select — instead of stacking into
+     three rows (label / title / picker). */
+  .fixture-context {
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+  .fixture-context > div {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+  }
+  .fixture-context .eyebrow { display: none; }
+  .fixture-context h2 {
+    min-width: 0;
+    flex: 1 1 auto;
+    font-size: .82rem;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .fixture-context .info-note { flex: none; }
+  .fixture-context .field { flex: none; gap: 0; }
+  .fixture-context .field > span { display: none; }
+  .fixture-context select {
+    width: auto;
+    min-width: 0;
+    max-width: 38vw;
+    min-height: 34px;
+    padding: 6px 8px;
+    font-size: .78rem;
+  }
+  .inline-form { width: 100%; }
+  .inline-form input { flex: 1 1 100%; }
+  .inline-form button, .inline-form .checkbox-field { flex: 1 1 auto; }
+
+  .form-grid.compact { grid-template-columns: 1fr auto; }
+  /* .toast bottom is set in the PWA shell block, so it clears the fixed nav. */
+}
+
+@media (max-width: 420px) {
+  .segmented button { padding: 8px; justify-content: center; }
+  .segmented button svg { width: 19px; height: 19px; }
+  .standout img { width: 44px; height: 44px; }
+}
+
+/* Wide screens: let the densest admin views breathe */
+@media (min-width: 1180px) {
+  .queue-groups { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* ==========================================================================
+   ACCESSIBILITY
+   ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+  button:active:not(:disabled),
+  .metric:hover, .standout:hover, .drag-player-card:hover { transform: none; }
+}
+
+@media (prefers-contrast: more) {
+  :root { --line: #46566a; --line-soft: #3a4757; --ink-3: #96a4b8; }
+}
+
+@media print {
+  .ambient, .topbar, .segmented, .admin-tabs, .toast, .row-actions { display: none !important; }
+  body { background: #fff; color: #000; }
+  .glass { border: 1px solid #ccc; box-shadow: none; background: #fff; }
+}
+
+/* ==========================================================================
+   REMAINING WRAPPERS
+   ========================================================================== */
+
+/* Admin root section — slightly cooler ground to separate it from player views */
+.admin { --line-soft: var(--line); }
+.admin > .page-title .eyebrow { color: var(--info); }
+
+/* A form card gets a little more breathing room than a plain card */
+.form-card { padding: clamp(18px, 2.2vw, 24px); }
+.form-card > .eyebrow { margin-bottom: 14px; }
+
+/* ==========================================================================
+   DATE FIELD — dd/mm/yyyy text + native picker trigger
+   ========================================================================== */
+
+.date-field { position: relative; display: flex; align-items: center; width: 100%; }
+.date-field .date-text { width: 100%; padding-inline-end: 42px; font-variant-numeric: tabular-nums; }
+
+/* The native input covers the WHOLE field (not just the trailing icon) so
+   tapping anywhere — including on top of the typed digits — opens the native
+   picker, not only a narrow icon hit-target that mobile browsers barely
+   render at all. Its own glyph is hidden (opacity 0, still clickable); a
+   themed CalendarDays icon drawn on top is the only visible affordance,
+   with pointer-events:none so clicks fall through to the native input. */
+.date-field .date-native {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: transparent;
+  cursor: pointer;
+}
+.date-field .date-native:focus { box-shadow: none; background: transparent; }
+.date-field .date-native::-webkit-datetime-edit,
+.date-field .date-native::-webkit-inner-spin-button,
+.date-field .date-native::-webkit-clear-button { display: none; }
+.date-field .date-native::-webkit-calendar-picker-indicator {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.date-field-icon {
+  position: absolute;
+  inset-inline-end: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  color: var(--ink-3);
+  pointer-events: none;
+}
+.date-field:hover .date-field-icon,
+.date-field:focus-within .date-field-icon { color: var(--acc); }
+.date-field:focus-within .date-text { border-color: var(--acc); box-shadow: var(--ring); }
+
+/* Organization switcher (multi-tenant) */
+.org-switcher {
+  width: auto;
+  min-width: 130px;
+  max-width: 200px;
+  min-height: 38px;
+  padding: 7px 12px;
+  padding-inline-end: 32px;
+  background-color: var(--surface-2);
+  background-position: left 9px center;
+  border-radius: var(--r-sm);
+  font-size: .85rem;
+  font-weight: 600;
+}
+@media (max-width: 759px) { .org-switcher { flex: 1 1 auto; max-width: none; } }
+
+.profile-org-switch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.org-picker-list { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.org-picker-list button { width: 100%; justify-content: center; }
+
+/* ==========================================================================
+   RESPONSIVE TABLE — column headers scroll away on a phone, so below 760px
+   each row becomes a card and every cell shows its own label (data-label).
+   ========================================================================== */
+
+/* Table vs. cards: one renders, the other is removed from the layout.
+   Only the HIDING is declared. Each component keeps whatever `display` it sets
+   for itself when visible (.player-cards is flex, .table-wrap is block), so
+   nothing here has to know or restore that.
+   `!important` is deliberate: `.player-cards { display: flex }` is declared
+   later in this file at equal specificity, so a plain `display: none` lost to
+   it and BOTH lists rendered on desktop. */
+.only-narrow { display: none; }
+@media (max-width: 759px) {
+  .only-wide { display: none; }
+  .only-narrow { display: block; }
+}
+
+/* ==========================================================================
+   ALERT PANEL — pending cancellation requests, shown above the admin tabs
+   ========================================================================== */
+
+.alert-panel {
+  padding: 0;
+  overflow: hidden;
+  border-color: color-mix(in srgb, var(--warn) 45%, transparent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--warn) 10%, transparent) 0%, var(--bg-2) 60%);
+}
+
+.alert-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 18px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  text-align: start;
+}
+.alert-head:hover { background: color-mix(in srgb, var(--warn) 7%, transparent); }
+
+.alert-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 8px;
+  flex: none;
+  background: var(--warn);
+  color: color-mix(in srgb, var(--warn) 20%, black);
+  border-radius: var(--r-pill);
+  font-size: .82rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 0 14px color-mix(in srgb, var(--warn) 40%, transparent);
+}
+.alert-title { flex: 1; font-size: .96rem; font-weight: 700; color: var(--ink); }
+.alert-cta { flex: none; min-height: 36px; padding: 7px 14px; font-size: .84rem; }
+
+.alert-chevron { color: var(--ink-3); transition: transform .2s var(--ease); }
+.alert-chevron.open { transform: rotate(-90deg); }
+
+.alert-list { padding: 0 14px 14px; }
+.alert-row { background: var(--sunken); border-color: color-mix(in srgb, var(--warn) 22%, transparent); align-items: flex-start; }
+.roster-row {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 10px;
+}
+.roster-row img {
+  width: 34px;
+  height: 34px;
+  margin: 0;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--surface-3);
+  flex: none;
+}
+.roster-row strong {
+  flex: 1;
+  min-width: 0;
+  text-align: start;
+  overflow-wrap: anywhere;
+}
+.alert-row > div:first-of-type { flex: 1; }
+.alert-row img { margin-top: 2px; width: 38px; height: 38px; border-radius: 50%; object-fit: cover; flex: none; background: var(--surface-3); }
+.alert-reason { color: var(--ink-2); }
+
+.alert-row .row-actions button { min-height: 36px; padding: 7px 12px; font-size: .82rem; }
+.alert-row .row-actions button.ghost {
+  background: transparent;
+  border-color: var(--line);
+  color: var(--ink-3);
+}
+.alert-row .row-actions button.ghost:hover { color: var(--ink); border-color: var(--ink-4); }
+
+/* Dashboard counter that points at the panel */
+@media (max-width: 759px) {
+  .alert-row { flex-direction: column; }
+  .alert-row .row-actions { width: 100%; }
+  .alert-row .row-actions button { flex: 1 1 auto; }
+}
+
+/* ==========================================================================
+   PLAYERS TOOLBAR & PAGINATION
+   ========================================================================== */
+
+.players-toolbar {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+@media (min-width: 620px) {
+  .players-toolbar { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); align-items: end; }
+}
+/* Clear the native search "x" so it doesn't collide with our styling */
+.players-toolbar input[type="search"]::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+  background: var(--ink-4);
+  mask: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M18 6 6 18M6 6l12 12' stroke='black' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E") center/contain no-repeat;
+  -webkit-mask: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M18 6 6 18M6 6l12 12' stroke='black' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E") center/contain no-repeat;
+}
+.players-toolbar input[type="search"]::-webkit-search-cancel-button:hover { background: var(--ink-2); }
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line-soft);
+}
+.pagination-info {
+  font-size: .82rem;
+  font-weight: 600;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.pagination-controls { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.pagination-controls button {
+  min-width: 40px;
+  min-height: 40px;
+  padding: 6px 11px;
+  font-size: .85rem;
+  font-variant-numeric: tabular-nums;
+}
+.pagination-controls button.active {
+  background: var(--acc);
+  color: var(--acc-ink);
+  border-color: transparent;
+  font-weight: 700;
+  box-shadow: 0 2px 10px var(--acc-glow);
+}
+.pagination-gap { color: var(--ink-4); padding: 0 2px; user-select: none; }
+
+@media (max-width: 480px) {
+  .pagination { justify-content: center; }
+  .pagination-info { width: 100%; text-align: center; }
+  .pagination-controls { justify-content: center; }
+}
+
+/* ==========================================================================
+   CONFIRM DIALOG — tone variants
+   ========================================================================== */
+
+.confirm-card { gap: 14px; }
+.confirm-card > svg { display: none; }   /* replaced by .confirm-icon */
+
+.confirm-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--acc-dim);
+  color: var(--acc);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--acc) 7%, transparent);
+}
+.confirm-card h2 { font-size: 1.2rem; }
+.confirm-card p { color: var(--ink-2); }
+
+.confirm-card.tone-warning .confirm-icon {
+  background: var(--warn-dim);
+  color: var(--warn);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--warn) 7%, transparent);
+}
+.confirm-card.tone-danger .confirm-icon {
+  background: var(--bad-dim);
+  color: var(--bad);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--bad) 7%, transparent);
+}
+.confirm-card.tone-danger .actions .primary {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--bad) 85%, white) 0%, var(--bad) 100%);
+  color: color-mix(in srgb, var(--bad) 20%, black);
+  box-shadow: 0 2px 12px color-mix(in srgb, var(--bad) 30%, transparent);
+}
+.confirm-card.tone-publish .confirm-icon {
+  background: var(--info-dim);
+  color: var(--info);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--info) 7%, transparent);
+}
+
+.confirm-card .actions button { flex: 1 1 auto; min-width: 120px; }
+.confirm-card .actions button:disabled { opacity: .6; }
+
+/* The state you are already in is not clickable */
+.state-row.current .state-option {
+  background: var(--acc-dim);
+  cursor: default;
+  opacity: 1;
+}
+
+/* Understaffed-team alert: a lineup slot needs filling right now */
+.alert-panel-danger {
+  border-color: color-mix(in srgb, var(--bad) 45%, transparent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--bad) 10%, transparent) 0%, var(--bg-2) 60%);
+}
+.alert-panel-danger .alert-head:hover { background: color-mix(in srgb, var(--bad) 7%, transparent); }
+.alert-badge.danger {
+  background: var(--bad);
+  color: color-mix(in srgb, var(--bad) 20%, black);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--bad) 40%, transparent);
+}
+.alert-panel-danger .alert-row { border-color: color-mix(in srgb, var(--bad) 22%, transparent); }
+.alert-panel-danger .alert-row .swatch { align-self: center; }
+
+/* Login: labelled fields (org / phone / password) on the login card */
+.login-grid .field > span { color: var(--ink-3); }
+.login-grid select,
+.login-grid input { width: 100%; }
+.login-card .form-error { margin-top: 2px; }
+
+/* Login: the organization when there is only one (shown, not chosen) */
+.org-fixed {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: var(--tap);
+  padding: 10px 14px;
+  background: var(--sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+}
+.org-fixed-name { font-size: .95rem; font-weight: 700; color: var(--ink); }
+.org-fixed-slug {
+  padding: 3px 9px;
+  background: var(--acc-dim);
+  border-radius: var(--r-pill);
+  font-size: .72rem;
+  font-weight: 700;
+  color: var(--acc);
+  letter-spacing: .02em;
+}
+
+/* Fixture row + its delete action */
+.fixture-item { display: flex; align-items: stretch; gap: 8px; }
+.fixture-item .fixture-row { flex: 1; min-width: 0; }
+.fixture-delete {
+  flex: 0 0 auto;
+  width: 44px;
+  padding: 0;
+  align-self: stretch;
+}
+.fixture-delete svg { width: 16px; height: 16px; }
+.fixture-edit {
+  flex: 0 0 auto;
+  width: 44px;
+  padding: 0;
+  align-self: stretch;
+}
+.fixture-edit svg { width: 16px; height: 16px; }
+.fixture-edit-panel {
+  margin-top: 8px;
+  padding: 14px;
+  background: var(--sunken);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md);
+}
+
+/* Registration questionnaire: admin's question builder (settings tab).
+   Each question is a compact summary row that expands to the full editor
+   on tap — the editor used to render inline for every question at once,
+   which turned a handful of questions into a wall of open forms. */
+.question-list { display: flex; flex-direction: column; gap: 8px; }
+.question-row {
+  padding: 10px 12px;
+  background: var(--sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.question-row.question-inactive { opacity: .55; }
+.question-row-head { display: flex; align-items: center; gap: 6px; }
+.question-row-move { display: flex; flex-direction: column; flex: none; gap: 2px; }
+.question-row-move button {
+  min-height: 0;
+  padding: 2px;
+  width: 22px;
+  height: 18px;
+  background: transparent;
+  border: 0;
+}
+.question-row-summary {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+  padding: 4px 2px;
+  background: none;
+  border: 0;
+  min-height: 0;
+  text-align: start;
+  cursor: pointer;
+}
+.question-row-label {
+  font-weight: 700;
+  font-size: .92rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.question-row-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: .74rem;
+  color: var(--ink-3);
+}
+.question-row-tag {
+  padding: 1px 8px;
+  border-radius: var(--r-pill);
+  background: var(--acc-dim);
+  color: var(--acc);
+  font-weight: 700;
+  font-size: .68rem;
+}
+.question-row-tag-off { background: var(--warn-dim); color: var(--warn); }
+.question-row-head .alert-chevron { flex: none; }
+.question-delete { flex: none; padding: 8px; }
+.question-row-body {
+  padding-top: 10px;
+  border-top: 1px solid var(--line-soft);
+}
+
+/* Registration questionnaire: player-facing question inputs (signup step 2).
+   Options wrap as chips in a row instead of stacking one-per-line — a
+   question with 4-6 short options used to take up half the screen on a
+   phone; side by side they read as quick taps instead of a long list. */
+.question-options { display: flex; flex-direction: row; flex-wrap: wrap; gap: 6px; }
+.question-options .checkbox-field { flex: 0 1 auto; padding: 8px 12px; min-height: 38px; font-size: .85rem; gap: 7px; }
+.question-scale { display: flex; flex-direction: column; gap: 6px; }
+.question-scale-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.question-scale-btn {
+  min-width: 38px;
+  min-height: 38px;
+  padding: 0 8px;
+  background: var(--sunken);
+  border: 1px solid var(--line);
+  color: var(--ink-2);
+  font-weight: 700;
+}
+.question-scale-btn.active {
+  background: var(--acc);
+  border-color: var(--acc);
+  color: var(--acc-ink);
+}
+.question-scale-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: .74rem;
+  color: var(--ink-4);
+}
+
+/* Compact, single-column layout for the questionnaire step itself — the
+   2-column .form-grid and full-size field spacing were designed for a
+   handful of basic signup fields, not an admin-defined list of N
+   questions, which on a phone turned into a long, cramped scroll. */
+.questions-grid { grid-template-columns: 1fr !important; gap: 16px; }
+.questions-grid > .field { gap: 5px; }
+.questions-grid > .field > span { font-size: .78rem; }
+.questions-grid textarea { min-height: 56px; }
+.login-card:has(.questions-grid) h1 { margin-bottom: 14px; }
+@media (max-width: 759px) {
+  .login-card:has(.questions-grid) { padding: clamp(16px, 5vw, 34px); }
+  .questions-grid { gap: 14px; }
+}
+
+/* ==========================================================================
+   PLAYER CARDS (mobile) — compact row, expands to edit on tap
+   ========================================================================== */
+
+/* No bare `display` here: `.player-cards` sits alongside `.only-narrow`, whose
+   `display: none` is declared EARLIER in this file at equal specificity. A
+   `display: flex` on this rule won that tie and rendered the mobile card list
+   on desktop as well, duplicating the player list. Scope it to the viewport
+   where the card list is actually meant to show. */
+.player-cards { flex-direction: column; gap: 8px; }
+@media (max-width: 759px) {
+  .player-cards { display: flex; }
+}
+
+.player-card {
+  background: var(--sunken);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md);
+}
+
+.player-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  text-align: start;
+  min-height: 56px;
+}
+.player-card-head img {
+  width: 34px; height: 34px;
+  flex: none;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--surface-3);
+}
+
+.player-card-id { display: flex; flex-direction: column; min-width: 0; flex: 1; line-height: 1.25; }
+.player-card-id strong {
+  font-size: .92rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.player-card-id small { font-size: .74rem; color: var(--ink-4); font-variant-numeric: tabular-nums; }
+
+.player-card-tags { display: flex; align-items: center; gap: 4px; flex: none; }
+.player-card-tags .pill { padding: 2px 7px; font-size: .68rem; }
+
+.tag-mini {
+  padding: 2px 7px;
+  border-radius: var(--r-pill);
+  font-size: .68rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.tag-member { background: var(--acc-dim); color: var(--acc); }
+.tag-senior { background: var(--warn-dim); color: var(--warn); }
+
+.player-card-rating {
+  flex: none;
+  min-width: 34px;
+  padding: 3px 8px;
+  background: var(--surface-2);
+  border-radius: var(--r-sm);
+  font-size: .82rem;
+  font-weight: 700;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+}
+/* .player-card-flags / .player-card-ratings / .rating-input below are used
+   by the profile overlay's edit section only (the card itself is a plain,
+   non-expanding summary now — see PlayerCard). */
+.player-card-flags { display: flex; gap: 12px; margin-top: 14px; }
+.player-card-flags .checkbox-field { flex: 1; justify-content: center; }
+
+/* Stacked rows, not side-by-side columns — three 40px-button steppers
+   squeezed into three columns overflowed narrow phones. A full-width row
+   per stat always has room, whatever the screen. */
+.player-card-ratings { display: flex; flex-direction: column; gap: 10px; }
+.rating-input {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+}
+.rating-input > span { font-size: .74rem; font-weight: 700; color: var(--ink-3); }
+.rating-att > span { color: var(--atk); }
+.rating-def > span { color: var(--def); }
+.rating-fit > span { color: var(--fit); }
+
+.player-card-actions { display: flex; gap: 8px; }
+.player-card-actions button { flex: 1; }
+
+/* Card head stays a plain button (tap-to-expand); the kebab menu sits
+   beside it as a sibling so it isn't nested inside that button. */
+.player-card-top { display: flex; align-items: stretch; }
+.player-card-top .player-card-head { flex: 1; min-width: 0; }
+
+/* Per-player action menu: a kebab button + small dropdown, shared by the
+   desktop table row and the mobile card. */
+.player-menu { position: relative; flex: none; display: flex; align-items: center; }
+.player-menu-cell { width: 1%; white-space: nowrap; text-align: center; }
+.player-menu-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  margin-inline-end: 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  color: var(--ink-3);
+}
+.player-menu-btn:hover { background: var(--surface-2); color: var(--ink-2); }
+/* Rendered into a portal (document.body) and positioned in JS from the
+   trigger button's own rect (top/left/width come from an inline style,
+   clamped to the viewport) — this escapes the table wrapper's and the
+   card's overflow clipping, which otherwise cut the menu off (it opened
+   but rendered invisible), and stays on-screen even when the trigger sits
+   near the screen edge. */
+.player-menu-list {
+  position: fixed;
+  z-index: 120;
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  background: linear-gradient(180deg, var(--surface) 0%, var(--bg-2) 100%);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: var(--e-3);
+}
+.player-menu-list button {
+  display: flex;
+  align-items: center;
+  /* The base `button` rule sets justify-content: center; without this
+     override the icon+label pair floated to the middle of the item
+     instead of hugging the start (right, in this RTL layout) edge. */
+  justify-content: flex-start;
+  width: 100%;
+  gap: 8px;
+  padding: 9px 10px;
+  background: transparent;
+  border: 0;
+  border-radius: var(--r-sm);
+  color: var(--ink-2);
+  font-size: .86rem;
+  font-weight: 600;
+  text-align: start;
+}
+.player-menu-list button:hover:not(:disabled) { background: var(--surface-2); }
+.player-menu-list button:disabled { color: var(--ink-4); cursor: not-allowed; }
+.player-menu-list button svg { flex: none; color: var(--ink-3); }
+.player-menu-list button.danger,
+.player-menu-list button.danger svg { color: var(--bad); }
+.player-menu-list button.danger:hover:not(:disabled) { background: var(--bad-dim); }
+
+/* ==========================================================================
+   MOBILE OVERFLOW GUARD
+   Nothing should make the page itself scroll sideways; wide content scrolls
+   inside its own container instead.
+   ========================================================================== */
+
+/* Belt-and-suspenders alongside the viewport meta tag: iOS Safari ignores
+   user-scalable=no for accessibility in some versions, but still honors
+   touch-action, so double-tap-to-zoom is blocked here too. */
+html, body { max-width: 100%; overflow-x: hidden; touch-action: manipulation; }
+
+@media (max-width: 759px) {
+  /* The roster is a long flat list — trade breathing room for fitting more
+     names on screen at once. */
+  .roster-list { gap: 4px; }
+  .roster-list .admin-list-row { padding: 6px 10px; }
+  .roster-row img { width: 26px; height: 26px; }
+  .roster-row strong { font-size: .84rem; }
+  .roster-row .pill { padding: 2px 7px; font-size: .7rem; min-width: 20px; justify-content: center; }
+
+  /* Long unbroken strings (phone numbers, slugs, URLs) must not widen the page. */
+  .admin-list-row, .queue-row, .fixture-row, .alert-row { min-width: 0; }
+  .admin-list-row strong, .admin-list-row small,
+  .fixture-row strong, .fixture-row span, .fixture-row small { overflow-wrap: anywhere; }
+
+  /* These carried desktop minimums into the phone layout. */
+  .pitch-name-editor input { min-width: 0; flex: 1 1 120px; }
+  .actions button { min-width: 0; }
+}
+
+/* ==========================================================================
+   PWA MOBILE SHELL
+   Standalone mode has no browser chrome, so the app must handle safe areas
+   itself and keep primary navigation within thumb reach.
+   ========================================================================== */
+
+@media (max-width: 759px) {
+  /* Respect the notch / home indicator in standalone mode. */
+  .topbar {
+    padding-top: max(12px, env(safe-area-inset-top));
+    padding-inline: max(14px, env(safe-area-inset-left));
+  }
+  .app-shell {
+    padding-inline: max(12px, env(safe-area-inset-left));
+    /* Room for the fixed bottom nav. */
+    padding-bottom: calc(66px + env(safe-area-inset-bottom));
+  }
+
+  /* Primary nav sits at the bottom, where thumbs actually reach. */
+  .segmented {
+    position: fixed;
+    inset-inline: 0;
+    bottom: 0;
+    z-index: 50;
+    order: 0;
+    width: 100%;
+    gap: 0;
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
+    background: rgba(var(--chrome-rgb), .94);
+    backdrop-filter: blur(18px) saturate(140%);
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
+    border: 0;
+    border-top: 1px solid var(--line);
+    border-radius: 0;
+    overflow: visible;
+  }
+  .segmented button {
+    flex: 1 1 0;
+    flex-direction: column;
+    gap: 3px;
+    min-height: 50px;
+    padding: 6px 2px;
+    font-size: .68rem;
+    font-weight: 600;
+    border-radius: var(--r-sm);
+  }
+  .segmented button svg { width: 20px; height: 20px; }
+  .segmented button.active {
+    background: transparent;
+    color: var(--acc);
+    box-shadow: none;
+    font-weight: 700;
+  }
+  /* Active indicator instead of a filled pill — lighter at this size. */
+  .segmented button.active::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    width: 22px;
+    height: 3px;
+    border-radius: 0 0 3px 3px;
+    background: var(--acc);
+  }
+  .segmented button { position: relative; }
+
+  /* The toolbar no longer holds the nav, so it stays on one line. */
+  .toolbar { width: auto; }
+  .topbar > div:first-child { flex: 1 1 auto; }
+
+  /* Toast must clear the bottom nav. */
+  .toast {
+    bottom: calc(72px + env(safe-area-inset-bottom));
+    /* Stretch to the safe width instead of hugging the text, so longer
+       messages wrap instead of pushing against the screen edges. */
+    width: auto;
+    left: max(12px, env(safe-area-inset-left));
+    right: max(12px, env(safe-area-inset-right));
+    max-width: none;
+    padding: 12px 14px;
+  }
+  .toast span { font-size: .86rem; }
+  .toast strong { flex: none; }
+  .toast button { flex: none; }
+
+  /* Admin tab strip: edge-to-edge scroller with a fade hint. Chips are
+     outlined rather than filled, matching the bottom nav's lighter,
+     text-driven active state at this size instead of a solid pill. */
+  .admin-tabs {
+    margin-inline: -4px;
+    padding-inline: 4px;
+    background: transparent;
+    border: 0;
+    gap: 6px;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
+  }
+  .admin-tabs button {
+    scroll-snap-align: start;
+    border: 1px solid var(--line);
+    font-size: .74rem;
+    font-weight: 600;
+    padding: 6px 12px;
+  }
+  .admin-tabs button.active {
+    background: transparent;
+    border-color: var(--acc);
+    color: var(--acc);
+    box-shadow: none;
+    font-weight: 700;
+  }
+}
+
+/* Labels stay visible at the bottom — they fit in a 4-up grid. */
+@media (max-width: 420px) {
+  .segmented button span { display: block; }
+  .segmented button { padding: 6px 1px; justify-content: center; }
+  .segmented button svg { width: 19px; height: 19px; }
+}
+
+/* ==========================================================================
+   REMAINING DENSE ADMIN SCREENS ON MOBILE
+   ========================================================================== */
+
+@media (max-width: 759px) {
+  /* Team builder: colour picker row was a 3-column grid squeezed into ~330px. */
+  .form-grid.compact { grid-template-columns: 1fr auto auto; gap: 8px; }
+  .form-grid.compact select { min-width: 0; }
+
+  /* Score entry: keep the two teams side by side, they are the comparison. */
+  .goal-event-row { gap: 8px; padding: 10px; }
+
+  /* Standings/table rows: drop to the essentials so nothing is clipped. */
+  .standing-row { gap: 8px; font-size: .84rem; }
+  .standing-row span { width: auto; min-width: 34px; }
+
+  /* Leaderboards: let long names wrap instead of overflowing. */
+  .leaderboard strong { white-space: normal; overflow-wrap: anywhere; }
+
+  /* Public squad view: narrower pitch, tighter lineup spacing. */
+  .pitch-field { padding: 16px 6px; }
+  .formation-row { gap: 18px; }
+  .formation-player { width: 68px; }
+  .formation-player img { width: 46px; height: 46px; }
+
+  /* Admin builder: lanes sit side by side like lanes on the pitch instead of
+     stacking full width — stacking each team's whole roster one under
+     another was the "too big to work with" problem: three teams plus the
+     bench meant a lot of scrolling just to move one player. Side by side +
+     compact chips (see the team-builder mobile block below) gets the whole
+     board on screen. */
+  .team-lane-grid { grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 6px; padding: 6px; }
+
+  /* Confirm dialog: full-width buttons are easier to hit accurately. */
+  .confirm-card .actions { flex-direction: column-reverse; }
+  .confirm-card .actions button { width: 100%; }
+
+  /* ---- 1. Registration queue: one player, one line ----
+     The row used to wrap because the action buttons carried full labels
+     ("הסר מהמחזור") that could not share a line with the name. On a phone the
+     labels are dropped for their icons, leaving three compact squares that fit
+     beside the name. The wording survives in title/aria-label, and returns at
+     desktop width. */
+  .queue-row {
+    flex-wrap: nowrap;
+    gap: 8px;
+    padding: 8px 10px;
+    align-items: center;
+  }
+  .queue-row .queue-number {
+    width: 22px; height: 22px;
+    font-size: .7rem;
+  }
+  .queue-row .queue-number.drag-handle {
+    width: auto;
+    min-width: 22px;
+    padding: 0 5px;
+  }
+  /* The name column is the only part allowed to give up space. */
+  .queue-row > div:not(.row-actions) { flex: 1 1 auto; min-width: 0; }
+  .queue-row strong {
+    font-size: .86rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .queue-row small {
+    font-size: .68rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  /* The status is already spelled out in the line beneath the name. */
+  .queue-row .status-pill { display: none; }
+  /* An earlier mobile rule gives every .row-actions `width: 100%` and stretchy
+     buttons, which is right for the wider admin rows but here took the whole
+     line and squeezed the name out of existence. Undo it for this row only. */
+  .queue-row .row-actions {
+    width: auto;
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+    margin-inline-start: auto;
+    gap: 4px;
+  }
+  .queue-row .row-actions button {
+    flex: 0 0 auto;
+    width: 34px;
+    min-width: 34px;
+    height: 34px;
+    min-height: 34px;
+    padding: 0;
+    gap: 0;
+    justify-content: center;
+  }
+  .queue-row .row-actions button svg { flex: none; }
+  .queue-row .row-actions .btn-text { display: none; }
+
+  /* ---- 4. Number-ish fields pair up instead of one per line ----
+     .form-grid only went two-up at 620px, so every field stacked on a phone.
+     Most of these are short numbers with plenty of room for two. */
+  .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  /* Text that needs the full width keeps it. */
+  .form-grid > button,
+  .form-grid > .form-error,
+  .form-grid > .form-success,
+  .form-grid > .field-wide { grid-column: 1 / -1; }
+  .form-grid .field > span {
+    font-size: .72rem;
+    overflow-wrap: anywhere;
+  }
+}
+
+/* Join-request alert: informational, distinct from the warning/danger panels */
+.alert-panel-info {
+  border-color: color-mix(in srgb, var(--info) 45%, transparent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--info) 10%, transparent) 0%, var(--bg-2) 60%);
+}
+.alert-panel-info .alert-head:hover { background: color-mix(in srgb, var(--info) 7%, transparent); }
+.alert-badge.info {
+  background: var(--info);
+  color: color-mix(in srgb, var(--info) 20%, black);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--info) 40%, transparent);
+}
+.alert-panel-info .alert-row { border-color: color-mix(in srgb, var(--info) 22%, transparent); }
+
+
+/* ==========================================================================
+   TOUCH TEAM BUILDING + COMPACT SCORE ENTRY
+   Drag-and-drop is mouse-only, so every move here is also reachable by tap.
+   ========================================================================== */
+
+/* A team (or the pool) that can receive the player being held. */
+.drop-target {
+  border-color: var(--acc);
+  box-shadow: 0 0 0 2px var(--acc-dim);
+}
+
+/* Standing reminder of who is held. Fixed, not sticky — sticky still takes
+   up space in the flow at the point it's inserted, so mounting/unmounting it
+   as `picked` changes shoved the whole page up and down. Fixed removes it
+   from the flow entirely, so appearing/disappearing never moves anything
+   else on the page. */
+.pick-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(70px + env(safe-area-inset-bottom));
+  width: fit-content;
+  max-width: min(560px, calc(100% - 24px));
+  margin-inline: auto;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--acc);
+  color: var(--acc-ink);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-lg, 0 8px 24px rgba(0,0,0,.35));
+}
+.pick-bar strong { font-weight: 800; }
+.pick-bar button {
+  flex: none;
+  background: rgba(0,0,0,.18);
+  color: inherit;
+  border: 0;
+  min-height: 34px;
+  padding: 6px 12px;
+  font-weight: 700;
+}
+.pick-bar-actions { display: flex; gap: 8px; flex: none; }
+/* The replacement choice needs a label plus three buttons, not one — wider
+   than the plain pick-bar, and stacked instead of squeezed onto one line. */
+.replace-choice-bar {
+  width: min(420px, calc(100% - 24px));
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+.replace-choice-bar .pick-bar-actions { justify-content: flex-end; }
+
+/* ---- 3. Score entry: two teams side by side, goals by tap ---- */
+.score-entry {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+.score-side { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.score-side select { width: 100%; min-width: 0; }
+.score-separator {
+  flex: none;
+  padding-bottom: 10px;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--ink-4);
+}
+.score-stepper button { flex: none; }
+.score-stepper input { min-width: 0; }
+
+/* ==========================================================================
+   PLAYER RESULTS ENTRY — live scoreline + goal log
+   ========================================================================== */
+
+/* One line: minutes stepper, clock, start/pause, reset. */
+.match-timer-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+}
+.match-timer-minutes { flex: none; }
+.match-timer-clock {
+  flex: 1 1 auto;
+  min-width: 56px;
+  text-align: center;
+  font-size: 1.3rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Sits right under the timer now, not as a full-width closer under the
+   game list — a quick, small action rather than a big primary CTA. The
+   .stack parent stretches flex children by default; opt back out. */
+.add-game-button {
+  align-self: flex-start;
+  min-height: 34px;
+  padding: 7px 12px;
+  font-size: .84rem;
+}
+
+/* A live game row is just its scoreline until tapped open — named apart
+   from the admin backfill screen's own .game-row (different markup). */
+.live-game-row { padding: 0; overflow: hidden; }
+.live-game-row-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 13px 16px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+.live-game-row-head:hover { background: var(--surface-2); }
+.live-game-row-team { flex: 1; min-width: 0; text-align: center; font-size: .88rem; font-weight: 700; overflow-wrap: break-word; }
+.live-game-row-score {
+  flex: none;
+  font-size: 1.1rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.live-game-row-body {
+  padding: 12px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-top: 1px solid var(--line-soft);
+}
+.goal-events-list li span { flex: 1 1 auto; display: flex; align-items: center; gap: 8px; min-width: 0; }
+/* The rule above also matches .team-dot (it's a span too), whose own
+   `flex: none` loses on specificity — it was growing to fill the row
+   instead of staying a small fixed dot. */
+.goal-events-list li span.team-dot { flex: none; width: 10px; height: 10px; }
+
+/* One compact row: scorer, assist, own-goal toggle, add — instead of a
+   stacked multi-field form, since logging a goal happens constantly during
+   a live match and shouldn't cost more than a glance each time. */
+.add-goal-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-top: 10px;
+  border-top: 1px solid var(--line-soft);
+}
+.add-goal-scorer { flex: 1 1 140px; min-width: 0; }
+.add-goal-assist { flex: 1 1 120px; min-width: 0; }
+.add-goal-form .own-goal-field {
+  flex: none;
+  padding: 8px 10px;
+  gap: 6px;
+  min-height: 0;
+  font-size: .8rem;
+  white-space: nowrap;
+}
+.add-goal-form .own-goal-field input { width: 16px; height: 16px; }
+
+/* De-emphasized on purpose — deleting the whole game is rare and shouldn't
+   compete visually with adding a goal, the thing done over and over. */
+.delete-game-button {
+  align-self: flex-start;
+  color: var(--ink-3);
+  font-size: .8rem;
+  padding: 2px;
+  min-height: 0;
+  background: transparent;
+  border: 0;
+}
+.delete-game-button:hover { color: var(--bad); background: transparent; }
+
+/* Compact icon-only action, for rows where a word would not fit. */
+.icon-button {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  min-width: 38px;
+  height: 38px;
+  min-height: 38px;
+  padding: 0;
+}
+
+@media (max-width: 759px) {
+  /* ---- 2. Team builder ---- */
+  /* Players are small floating tokens everywhere now (see .drag-player-card
+     above), so the bench and team lanes just wrap naturally — nothing
+     mobile-specific needed here beyond a slightly tighter gap. */
+  .drag-player-grid { gap: 8px; }
+
+  /* The colour picker was a full-height form row. */
+  .team-lane .form-grid.compact { gap: 6px; }
+  .team-lane select { min-height: 40px; }
+  .pitch-card .section-head { gap: 10px; }
+
+  /* ---- 3. Goal rows ---- */
+  .goal-event-row { gap: 6px; padding: 8px; }
+  .goal-event-row select { min-height: 38px; font-size: .85rem; min-width: 0; flex-basis: 100%; }
+
+  .score-entry { gap: 8px; }
+  .score-side select { min-height: 40px; font-size: .85rem; }
+}
+
+
+/* ==========================================================================
+   TEAM / PITCH BUILDER — MOBILE
+   The job here is moving players between teams. Everything else (colour,
+   pitch settings) is reference or rare, so it yields space to the roster
+   rather than pushing it off screen.
+   ========================================================================== */
+
+.team-color-toggle {
+  flex: none;
+  width: 26px; min-width: 26px;
+  height: 26px; min-height: 26px;
+  padding: 0;
+  gap: 0;
+  justify-content: center;
+  --btn-bg: transparent;
+  --btn-line: transparent;
+  color: var(--ink-4);
+}
+.team-color-toggle[aria-expanded="true"] { color: var(--acc); }
+/* The base button:hover rule sets a flat, theme-toned background directly
+   (not through --btn-bg, so this toggle's own transparent override doesn't
+   stop it) — on the desktop builder's solid colour pill that showed up as
+   a plain pale/white box stamped over the team colour. A translucent white
+   highlight instead reads as a hover state on top of any team colour. */
+.team-color-toggle:hover:not(:disabled) {
+  background: rgba(255,255,255,.25);
+  border-color: transparent;
+}
+.team-color-editor { width: 100%; }
+
+/* Controls sitting ON a --sunken container must not share its background.
+   Inputs and selects default to --sunken too, so on these surfaces they read
+   as transparent holes with the content behind them showing through. Lift them
+   one step to --surface-2 wherever that collision happens. */
+.team-lane select,
+.team-lane input,
+.goal-event-row select,
+.goal-event-row input,
+.admin-list-row select,
+.admin-list-row input,
+.alert-row select,
+.alert-row input {
+  background-color: var(--surface-2);
+  border-color: var(--line);
+}
+/* The native dropdown panel is painted by the OS; give its options a solid
+   surface so an open list is never see-through. */
+.team-lane select option,
+.goal-event-row select option {
+  background: var(--surface);
+  color: var(--ink);
+}
+
+@media (max-width: 759px) {
+  .team-lane { padding: 6px 2px; gap: 6px; }
+
+  .pitch-card { padding: 14px 12px; }
+}
+
+
+/* ==========================================================================
+   JOIN CODE — reaching a private club from the login page
+   ========================================================================== */
+
+/* Code field + confirm button share one line. */
+.join-code-row { display: flex; gap: 8px; align-items: center; }
+.join-code-row input {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+.join-code-row input::placeholder {
+  font-weight: 500;
+  letter-spacing: normal;
+  text-transform: none;
+}
+.join-code-row button { flex: 0 0 auto; }
+
+/* Clears a club unlocked by code, to enter a different one. */
+.org-fixed-clear {
+  flex: none;
+  width: 28px; min-width: 28px;
+  height: 28px; min-height: 28px;
+  padding: 0;
+  gap: 0;
+  justify-content: center;
+  color: var(--ink-4);
+}
+.org-fixed-clear:hover { color: var(--ink); }

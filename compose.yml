@@ -1,0 +1,39 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    container_name: badat-api
+    restart: unless-stopped
+    environment:
+      PGHOST: postgres
+      PGPORT: 5432
+      PGDATABASE: badat_football
+      PGUSER: postgres
+      PGPASSWORD: "TripoDB2024!"
+      API_PORT: 3015
+      WEB_ORIGIN: "http://shib.kefar-sava.co.il"
+    ports:
+      - "3116:3015"
+    volumes:
+      - api_uploads:/app/uploads
+    networks:
+      - postgres_default
+
+  client:
+    build:
+      context: .
+      dockerfile: docker/client.Dockerfile
+      args:
+        VITE_API_URL: "https://shib.kefar-sava.co.il"
+    container_name: badat-client
+    restart: unless-stopped
+    ports:
+      - "3082:80"
+
+networks:
+  postgres_default:
+    external: true
+
+volumes:
+  api_uploads:
