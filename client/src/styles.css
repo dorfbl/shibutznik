@@ -63,13 +63,26 @@
      "slightly emphasized" rather than a full border-color change. */
   --line-hover: #3d434e;
 
-  /* ---- Radii ---- */
-  --r-xs: 9px;
+  /* ---- Radii: generous and consistent — rounder across the board reads as
+     friendlier than the previous tighter scale. ---- */
+  --r-xs: 8px;
   --r-sm: 12px;
-  --r-md: 14px;
-  --r-lg: 20px;
-  --r-xl: 26px;
+  --r-md: 16px;
+  --r-lg: 24px;
+  --r-xl: 32px;
   --r-pill: 999px;
+
+  /* ---- Spacing: an 8-point scale. Layered onto the file's existing
+     hand-tuned paddings rather than replacing every one of them — used
+     directly by the trunk components (buttons, fields, cards, tabs). ---- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
 
   /* ---- Elevation ---- */
   --e-1: 0 1px 2px rgba(0,0,0,.4);
@@ -78,7 +91,10 @@
   --ring: 0 0 0 3px var(--acc-glow);
 
   --tap: 44px;                 /* minimum touch target */
-  --ease: cubic-bezier(.4,0,.2,1);
+  /* A softer, slightly bouncy curve — used everywhere a rule already
+     references var(--ease), so this one line re-times every hover, press,
+     toast and dialog transition in the app at once. */
+  --ease: cubic-bezier(.22,.8,.36,1);
 
   color-scheme: dark;
   font-family: 'Assistant', 'Segoe UI', system-ui, -apple-system, sans-serif;
@@ -226,23 +242,23 @@ button {
   justify-content: center;
   gap: 8px;
   min-height: var(--tap);
-  padding: 10px 16px;
+  padding: var(--space-3) var(--space-4);
   background: var(--btn-bg);
   color: var(--btn-ink);
-  border: 1px solid var(--btn-line);
+  border: 1.5px solid var(--btn-line);
   border-radius: var(--r-md);
   font-size: .92rem;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
   transition: background .18s var(--ease), border-color .18s var(--ease),
-              transform .12s var(--ease), box-shadow .18s var(--ease), color .18s var(--ease);
+              transform .16s var(--ease), box-shadow .18s var(--ease), color .18s var(--ease);
 }
 button:hover:not(:disabled) {
   background: var(--surface-3);
   border-color: var(--line-hover);
 }
-button:active:not(:disabled) { transform: translateY(1px); }
+button:active:not(:disabled) { transform: translateY(1px) scale(.98); }
 button:disabled { opacity: .45; cursor: not-allowed; }
 button svg { width: 17px; height: 17px; flex: none; }
 
@@ -254,10 +270,25 @@ button.primary {
   font-weight: 700;
   box-shadow: 0 2px 12px var(--acc-glow), inset 0 1px 0 rgba(255,255,255,.28);
 }
+/* A confident lift + deeper glow on hover, not just a background swap —
+   the one control on every screen that should feel the most "pressable". */
 button.primary:hover:not(:disabled) {
   background: linear-gradient(180deg, color-mix(in srgb, var(--acc) 85%, white) 0%, var(--acc) 100%);
   border-color: transparent;
-  box-shadow: 0 4px 20px var(--acc-glow), inset 0 1px 0 rgba(255,255,255,.35);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px var(--acc-glow), inset 0 1px 0 rgba(255,255,255,.35);
+}
+button.primary:active:not(:disabled) { transform: translateY(0) scale(.98); }
+
+/* ---- Button: ghost (transparent, borderless until hovered) ---- */
+button.ghost {
+  --btn-bg: transparent;
+  --btn-line: transparent;
+  --btn-ink: var(--ink-2);
+}
+button.ghost:hover:not(:disabled) {
+  --btn-bg: var(--surface-2);
+  --btn-ink: var(--ink);
 }
 
 /* ---- Button: danger ---- */
@@ -275,9 +306,9 @@ button.danger:hover:not(:disabled) {
 input:not([type="range"]), select, textarea {
   width: 100%;
   min-height: var(--tap);
-  padding: 10px 14px;
+  padding: 11px var(--space-4);
   background: var(--sunken);
-  border: 1px solid var(--line);
+  border: 1.5px solid var(--line);
   border-radius: var(--r-md);
   font-size: .95rem;
   font-weight: 500;
@@ -382,13 +413,14 @@ input[type="checkbox"] {
   flex: none;
   padding: 0;
   border: 2px solid var(--line);
-  border-radius: 7px;
+  border-radius: var(--r-xs);
   background: var(--sunken);
   cursor: pointer;
   display: inline-grid;
   place-content: center;
-  transition: background .15s var(--ease), border-color .15s var(--ease);
+  transition: background .15s var(--ease), border-color .15s var(--ease), transform .12s var(--ease);
 }
+input[type="checkbox"]:active { transform: scale(.9); }
 input[type="checkbox"]::after {
   content: "";
   width: 11px;
@@ -573,18 +605,19 @@ main { display: block; }
   gap: 4px;
   padding: 4px;
   background: var(--sunken);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-pill);
 }
 .segmented button {
   min-height: 38px;
   padding: 7px 14px;
   background: transparent;
   border: 0;
-  border-radius: var(--r-sm);
+  border-radius: var(--r-pill);
   color: var(--ink-3);
   font-weight: 600;
   font-size: .88rem;
+  transition: background .18s var(--ease), color .18s var(--ease), box-shadow .18s var(--ease);
 }
 .segmented button:hover:not(.active) { background: var(--surface-2); color: var(--ink-2); }
 .segmented button.active {
@@ -600,14 +633,14 @@ main { display: block; }
 
 .glass {
   background: linear-gradient(180deg, var(--surface) 0%, var(--bg-2) 100%);
-  border: 1px solid var(--line);
+  border: 1.5px solid var(--line);
   border-radius: var(--r-xl);
-  padding: clamp(16px, 2vw, 22px);
+  padding: clamp(var(--space-4), 2vw, var(--space-5));
   box-shadow: var(--e-2);
 }
 
-.grid { display: grid; gap: 16px; grid-template-columns: 1fr; align-content: start; }
-.stack { display: flex; flex-direction: column; gap: 16px; }
+.grid { display: grid; gap: var(--space-4); grid-template-columns: 1fr; align-content: start; }
+.stack { display: flex; flex-direction: column; gap: var(--space-4); }
 
 /* Collapsible card: a .glass card whose body starts hidden behind a
    clickable header — used for settings/creation forms that eat vertical
@@ -619,15 +652,16 @@ main { display: block; }
   justify-content: space-between;
   gap: 12px;
   width: 100%;
-  padding: clamp(16px, 2vw, 22px);
+  padding: clamp(var(--space-4), 2vw, var(--space-5));
   background: transparent;
   border: 0;
   border-radius: 0;
   text-align: start;
+  transition: background .16s var(--ease);
 }
 .collapsible-head:hover { background: var(--surface-2); }
 .collapsible-head h2 { margin-top: 2px; font-size: 1.1rem; }
-.collapsible-body { padding: 0 clamp(16px, 2vw, 22px) clamp(16px, 2vw, 22px); }
+.collapsible-body { padding: 0 clamp(var(--space-4), 2vw, var(--space-5)) clamp(var(--space-4), 2vw, var(--space-5)); }
 
 @media (min-width: 760px) {
   .grid.two   { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -661,9 +695,9 @@ main { display: block; }
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 5px 12px;
+  padding: 6px 13px;
   background: var(--surface-2);
-  border: 1px solid var(--line);
+  border: 1.5px solid var(--line);
   border-radius: var(--r-pill);
   font-size: .78rem;
   font-weight: 600;
@@ -852,7 +886,7 @@ main { display: block; }
 .personal-card p { color: var(--ink-3); font-size: .88rem; }
 .mates { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 4px; }
 
-/* ---- Jersey avatar (photo + jersey silhouette) ---- */
+/* ---- Jersey avatar: photo + colored team ring ---- */
 /* Sometimes a plain div, sometimes a real <button> (tap for stats) — reset
    the button chrome either way so both look identical. */
 .jersey-avatar {
@@ -860,9 +894,8 @@ main { display: block; }
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
-  /* Wide enough for the jersey, which is sized from the avatar's radius. */
-  width: 63px;
+  gap: 6px;
+  width: 64px;
   padding: 0;
   min-height: 0;
   background: transparent;
@@ -870,30 +903,18 @@ main { display: block; }
 }
 button.jersey-avatar {
   cursor: pointer;
-  transition: transform .14s var(--ease);
+  transition: transform .16s var(--ease);
 }
 button.jersey-avatar:hover { transform: translateY(-2px); }
 button.jersey-avatar:active { transform: scale(.96); }
 .jersey-avatar img {
-  width: 42px;
-  height: 42px;
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
   object-fit: cover;
   background: var(--surface-3);
-  border: 2px solid var(--line);
-}
-/* The jersey sits BELOW the photo, not over it — absolutely positioned it
-   covered the lower half of the face. Now it is a normal flow item in the
-   column, so photo, shirt and name simply stack. */
-.jersey-avatar svg {
-  /* Width is derived, not chosen: at 63px the collar's 40-unit arc renders at
-     21px radius — exactly the 42px avatar's radius — so the curves match. */
-  width: 63px;
-  height: 41px;
-  /* Pull the shoulders up so the collar meets the avatar's lower edge. */
-  margin-top: -9px;
-  filter: drop-shadow(0 2px 5px rgba(0,0,0,.5));
-  pointer-events: none;
+  border: 3px solid var(--team, var(--acc));
+  box-shadow: 0 2px 6px rgba(0,0,0,.25);
 }
 .jersey-avatar span {
   font-size: .74rem;
@@ -906,10 +927,8 @@ button.jersey-avatar:active { transform: scale(.96); }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.jersey-avatar.large { width: 111px; }
-.jersey-avatar.large img { width: 74px; height: 74px; }
-/* Same derivation for the 74px avatar: 111px wide -> 37px collar radius. */
-.jersey-avatar.large svg { width: 111px; height: 72px; margin-top: -16px; }
+.jersey-avatar.large { width: 96px; }
+.jersey-avatar.large img { width: 76px; height: 76px; border-width: 4px; }
 .jersey-avatar.large span { font-size: .9rem; font-weight: 700; color: var(--ink); }
 
 .avatar {
@@ -1532,8 +1551,8 @@ button.formation-player { cursor: grab; }
   gap: 4px;
   padding: 4px;
   background: var(--sunken);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-pill);
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -1544,10 +1563,11 @@ button.formation-player { cursor: grab; }
   padding: 7px 15px;
   background: transparent;
   border: 0;
-  border-radius: var(--r-sm);
+  border-radius: var(--r-pill);
   color: var(--ink-3);
   font-weight: 600;
   font-size: .88rem;
+  transition: background .18s var(--ease), color .18s var(--ease), box-shadow .18s var(--ease);
 }
 .admin-tabs button:hover:not(.active) { background: var(--surface-2); color: var(--ink-2); }
 .tab-badge {
@@ -2028,17 +2048,20 @@ button.formation-player { cursor: grab; }
 
 .empty-drop {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 8px;
   width: 100%;
-  padding: 16px 12px;
-  border: 1px dashed var(--line);
-  border-radius: var(--r-md);
+  padding: var(--space-6) var(--space-4);
+  border: 1.5px dashed var(--line);
+  border-radius: var(--r-lg);
   color: var(--ink-4);
   font-size: .84rem;
   font-weight: 600;
   text-align: center;
 }
+.empty-drop svg { width: 22px; height: 22px; opacity: .8; }
 
 .pitch-name-editor { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
 .pitch-name-editor input { width: auto; min-width: 150px; flex: 1 1 150px; font-weight: 700; }
@@ -2151,7 +2174,7 @@ button.formation-player { cursor: grab; }
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
-table { width: 100%; border-collapse: separate; border-spacing: 0 6px; font-size: .88rem; }
+table { width: 100%; border-collapse: separate; border-spacing: 0 8px; font-size: .88rem; }
 thead th {
   padding: 0 10px 8px;
   text-align: start;
@@ -2165,7 +2188,7 @@ thead th {
 tbody tr { background: var(--sunken); }
 tbody tr:hover { background: var(--surface-2); }
 tbody td {
-  padding: 8px 10px;
+  padding: 10px 12px;
   border-block: 1px solid var(--line-soft);
   vertical-align: middle;
 }

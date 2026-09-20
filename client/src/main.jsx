@@ -13,11 +13,13 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronUp,
+  CircleCheck,
   CircleUserRound,
   Clock,
   Crown,
   Goal,
   GripVertical,
+  HelpCircle,
   Info,
   LayoutDashboard,
   Minus,
@@ -28,6 +30,7 @@ import {
   Plus,
   RotateCcw,
   RotateCw,
+  Search,
   ShieldAlert,
   Sparkles,
   Sun,
@@ -2326,7 +2329,7 @@ function AdminFixtures({ fixtures, selectedMatchId, setSelectedMatchId, mutate }
               )}
             </div>
           ))}
-          {!fixtures.length && <div className="empty-drop">אין מחזורים</div>}
+          {!fixtures.length && <div className="empty-drop"><CalendarDays /><span>אין מחזורים</span></div>}
         </div>
       </article>
     </section>
@@ -2507,7 +2510,7 @@ function RegistrationQuestionnaireSettings({ settings, questions, mutate }) {
 
       <article className="glass">
         <p className="eyebrow">שאלות קיימות</p>
-        {!questions.length && <div className="empty-drop">עדיין לא הוגדרו שאלות</div>}
+        {!questions.length && <div className="empty-drop"><HelpCircle /><span>עדיין לא הוגדרו שאלות</span></div>}
         <div className="question-list">
           {questions.map((question, index) => (
             <QuestionRow
@@ -3091,7 +3094,7 @@ function AdminPlayers({ players, mutate, bundle, user, weights }) {
       </div>
 
       {filtered.length === 0 ? (
-        <div className="empty-drop">לא נמצאו שחקנים התואמים לחיפוש</div>
+        <div className="empty-drop"><Search /><span>לא נמצאו שחקנים התואמים לחיפוש</span></div>
       ) : (
         <>
           {/* Table on desktop, compact expandable cards on phones. */}
@@ -3829,7 +3832,7 @@ function AdminRegistration({ bundle, players, mutate, user, weights }) {
             </div>
           </div>
         ))}
-        {!closedRows.length && <div className="empty-drop">אין ביטולים או לא מגיעים</div>}
+        {!closedRows.length && <div className="empty-drop"><CircleCheck /><span>אין ביטולים או לא מגיעים</span></div>}
       </div>
     </article>
   );
@@ -5928,7 +5931,7 @@ function ResultForm({ pitch, mutate }) {
             </div>
           );
         })}
-        {teamAGoals + teamBGoals === 0 && <div className="empty-drop">קבעו תוצאה כדי להוסיף כובשים</div>}
+        {teamAGoals + teamBGoals === 0 && <div className="empty-drop"><Goal /><span>קבעו תוצאה כדי להוסיף כובשים</span></div>}
       </div>
 
       <button className="primary" onClick={() => mutate(`/api/admin/pitches/${pitch.id}/games`, {
@@ -6005,6 +6008,9 @@ function AuditLog({ rows }) {
   );
 }
 
+// A colored ring around the photo carries the team identity — same
+// language as .drag-player-card/.formation-player elsewhere, instead of a
+// separate illustrated jersey silhouette unique to this one spot.
 function AvatarJersey({ player, color, large = false, onClick }) {
   const Tag = onClick ? "button" : "div";
   return (
@@ -6012,18 +6018,9 @@ function AvatarJersey({ player, color, large = false, onClick }) {
       type={onClick ? "button" : undefined}
       className={`jersey-avatar ${large ? "large" : ""}`}
       onClick={onClick}
+      style={{ "--team": color }}
     >
       <img src={player?.avatar_url} alt="" />
-      {/* The collar is a true circular arc of radius 40 viewBox units. The CSS
-          widths (63px / 111px) are chosen so that arc renders at exactly the
-          avatar's radius, letting the shirt sit flush under the photo. */}
-      <svg viewBox="0 10 120 78" aria-hidden="true">
-        <path
-          fill={color}
-          d="M29.6 10 8 20 0 48l16 8 8-12v34h72V44l8 12 16-8-8-28-21.6-10A40 40 0 0 1 29.6 10Z"
-        />
-        <path fill="rgba(255,255,255,.28)" d="M52 30h16v48H52z" />
-      </svg>
       <span>{player?.full_name?.split(" ")[0]}</span>
     </Tag>
   );
