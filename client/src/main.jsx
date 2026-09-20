@@ -13,6 +13,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronUp,
+  CircleAlert,
   CircleCheck,
   CircleUserRound,
   Clock,
@@ -22,6 +23,8 @@ import {
   HelpCircle,
   Info,
   LayoutDashboard,
+  LogOut,
+  MapPin,
   Minus,
   Moon,
   MoreVertical,
@@ -373,18 +376,23 @@ function App() {
       <div className="ambient ambient-b" />
       <div className="topbar-row">
         <header className="topbar glass">
-          <div>
-            <p className="eyebrow">{data?.organization?.name || APP_NAME}</p>
-            <h1>
-              {selectedPlayer?.full_name}
-              {currentUser?.is_monthly_member && (
-                <span className="member-mark" title="מנוי פעיל"><Crown size={14} /></span>
-              )}
-            </h1>
+          <div className="topbar-id">
+            {selectedPlayer?.avatar_url && <img className="avatar topbar-avatar" src={selectedPlayer.avatar_url} alt="" />}
+            <div>
+              <p className="eyebrow">{data?.organization?.name || APP_NAME}</p>
+              <h1>
+                {selectedPlayer?.full_name}
+                {currentUser?.is_monthly_member && (
+                  <span className="member-mark" title="מנוי פעיל"><Crown size={14} /></span>
+                )}
+              </h1>
+            </div>
           </div>
           <div className="toolbar">
             <ThemeToggle theme={theme} onToggle={toggleTheme} />
-            <button onClick={logout}>התנתק</button>
+            <button className="ghost icon-only" onClick={logout} aria-label="התנתק" title="התנתק">
+              <LogOut size={18} />
+            </button>
           </div>
         </header>
 
@@ -529,6 +537,8 @@ function LoginScreen({ onLogin, theme, onToggleTheme, setToast }) {
 
   return (
     <div className="login-page" dir="rtl">
+      <div className="ambient ambient-a" />
+      <div className="ambient ambient-b" />
       <ThemeToggle theme={theme} onToggle={onToggleTheme} />
       {inviteCode && inviteValid !== false ? (
         // Still checking the code, or confirmed valid — either way this
@@ -545,8 +555,9 @@ function LoginScreen({ onLogin, theme, onToggleTheme, setToast }) {
         )
       ) : (
         <article className="glass login-card">
-          <p className="eyebrow">{APP_NAME}</p>
-          <h1>כניסה לשחקנים ואדמינים</h1>
+          <div className="login-mark" aria-hidden="true"><Goal size={26} /></div>
+          <p className="eyebrow login-eyebrow">{APP_NAME}</p>
+          <h1 className="login-title">כניסה לשחקנים ואדמינים</h1>
           <div className="form-grid login-grid">
             <Field label="טלפון">
               <input
@@ -572,10 +583,10 @@ function LoginScreen({ onLogin, theme, onToggleTheme, setToast }) {
             </Field>
             {error && <div className="form-error">{error}</div>}
             <button className="primary" onClick={() => login()} disabled={busy || !isValidPhone(form.phone) || !form.password}>
-              {busy ? "מתחבר…" : "התחבר"}
+              {busy ? "מתחבר…" : <>התחבר<ChevronLeft size={16} /></>}
             </button>
           </div>
-          <small>דמו: כל המשתמשים הקיימים עם סיסמה `123456`. אדמין: 0502222222, סטטיסטיקות: 0503333333.</small>
+          <small className="login-demo-note">דמו: כל המשתמשים הקיימים עם סיסמה `123456`. אדמין: 0502222222, סטטיסטיקות: 0503333333.</small>
         </article>
       )}
       {orgChoices && (
@@ -714,13 +725,14 @@ function PlayerHome({ player, bundle, reload, setToast, askConfirm, organization
     <section className="grid two">
       <article className="hero-panel glass">
         <div className="hero-copy">
-          <p className="eyebrow">המשחק הקרוב</p>
+          <p className="eyebrow"><CalendarDays size={13} /> המשחק הקרוב</p>
           {/* The date/time is the one fact a player actually needs at a glance —
               the fixture's internal title and the registration/waitlist counts
               are admin bookkeeping, not something to lead with here. */}
-          <h2 className="upcoming-date">{formatDate(bundle?.match.match_date)} · {bundle?.match.starts_at?.slice(0, 5)}</h2>
+          <h2 className="upcoming-date">{formatDate(bundle?.match.match_date)}</h2>
           <div className="meta-row">
-            <span><Goal size={18} /> {bundle?.match.location}</span>
+            <span><Clock size={16} /> {bundle?.match.starts_at?.slice(0, 5)}</span>
+            <span><MapPin size={16} /> {bundle?.match.location}</span>
           </div>
           {bundle?.match.banner && <div className="notice"><Bell size={18} />{bundle.match.banner}</div>}
           {canRegister && !isSignedUp && (
@@ -1690,7 +1702,7 @@ function PitchStats({ pitch, goals }) {
               <tbody>
                 {standings.map((team, index) => (
                   <tr key={team.id}>
-                    <td>{index + 1}</td>
+                    <td><span className={`rank-badge ${index === 0 ? "rank-1" : ""}`}>{index + 1}</span></td>
                     <td className="team-name-cell">
                       <span className="assignment-swatch" style={{ background: team.color_hex }} aria-hidden="true" />
                       {team.color_name}
@@ -1735,8 +1747,9 @@ function PitchStats({ pitch, goals }) {
           <p className="muted">אף שחקן לא כבש או בישל במגרש הזה עדיין.</p>
         ) : (
           <div className="standings player-tally-list">
-            {players.map((player) => (
+            {players.map((player, index) => (
               <div className="standing-row player-tally-row" key={player.id}>
+                <span className={`rank-badge rank-badge-sm ${index === 0 ? "rank-1" : ""}`}>{index + 1}</span>
                 <span className="assignment-swatch" style={{ background: player.color_hex }} aria-hidden="true" />
                 <strong>{player.full_name}</strong>
                 <span><Goal size={14} /> {player.goals}</span>
@@ -2290,8 +2303,12 @@ function AdminFixtures({ fixtures, selectedMatchId, setSelectedMatchId, mutate }
                   onClick={() => setSelectedMatchId(fixture.id)}
                 >
                   <strong>{fixture.title}</strong>
-                  <span>{formatDate(fixture.match_date)} · {fixture.starts_at?.slice(0, 5)}</span>
-                  <small>{fixture.pitch_count} מגרשים · {fixture.team_count} קבוצות · {fixture.registration_count} נרשמים</small>
+                  <span><CalendarDays size={14} /> {formatDate(fixture.match_date)} <Clock size={14} /> {fixture.starts_at?.slice(0, 5)}</span>
+                  <span className="fixture-meta">
+                    <small><LayoutDashboard size={13} /> {fixture.pitch_count} מגרשים</small>
+                    <small><Users size={13} /> {fixture.team_count} קבוצות</small>
+                    <small><UserPlus size={13} /> {fixture.registration_count} נרשמים</small>
+                  </span>
                 </button>
                 <button
                   className="ghost fixture-edit"
@@ -6236,11 +6253,12 @@ function showToast(setToast, message, type = "success") {
 }
 
 function Toast({ toast, onClose }) {
+  const Icon = toast.type === "error" ? CircleAlert : CircleCheck;
   return (
     <div className={`toast ${toast.type}`}>
-      <strong>{toast.type === "error" ? "שגיאה" : "עודכן"}</strong>
+      <span className="toast-icon"><Icon size={18} /></span>
       <span>{toast.message}</span>
-      <button onClick={onClose}>סגור</button>
+      <button className="ghost icon-only toast-close" onClick={onClose} aria-label="סגור"><X size={16} /></button>
     </div>
   );
 }

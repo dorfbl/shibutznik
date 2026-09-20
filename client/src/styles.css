@@ -569,7 +569,17 @@ input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
   border-top: 0;
   box-shadow: var(--e-2);
 }
+.topbar-id { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.topbar-avatar { width: 42px; height: 42px; border-color: var(--acc); flex: none; }
 .topbar h1 { display: flex; align-items: center; gap: 8px; font-size: clamp(1.15rem, 1rem + .7vw, 1.5rem); }
+/* A quiet icon-only control (topbar logout) — same tap target, none of the
+   visual weight of a labeled secondary button. */
+button.icon-only {
+  width: var(--tap);
+  min-width: var(--tap);
+  padding: 0;
+  border-radius: var(--r-pill);
+}
 /* The only thing left next to the name — no more role/platform pills, just
    a quiet mark for an active monthly membership. */
 .member-mark {
@@ -587,6 +597,9 @@ input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
 
 /* Small caps label above a heading */
 .eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 5px;
   margin: 0 0 3px;
   font-size: .72rem;
   font-weight: 700;
@@ -594,6 +607,7 @@ input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
   color: var(--acc);
   text-transform: uppercase;
 }
+.eyebrow svg { width: 13px; height: 13px; flex: none; }
 
 main { display: block; }
 
@@ -620,11 +634,13 @@ main { display: block; }
   transition: background .18s var(--ease), color .18s var(--ease), box-shadow .18s var(--ease);
 }
 .segmented button:hover:not(.active) { background: var(--surface-2); color: var(--ink-2); }
+.segmented button:active:not(.active) { transform: scale(.95); }
 .segmented button.active {
   background: var(--acc);
   color: var(--acc-ink);
   font-weight: 700;
   box-shadow: 0 2px 10px var(--acc-glow);
+  transform: translateY(-1px);
 }
 
 /* ==========================================================================
@@ -1333,6 +1349,25 @@ button.formation-player { cursor: grab; }
 .team-card-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
 .team-card-head h3 { margin: 0; font-size: 1rem; }
 
+/* Rank badge — a real position marker instead of a bare number, on both
+   the standings table and the goal/assist tally list. */
+.rank-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 6px;
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+  color: var(--ink-3);
+  font-size: .8rem;
+  font-weight: 700;
+  flex: none;
+}
+.rank-badge.rank-1 { background: var(--acc-dim); color: var(--acc); }
+.rank-badge-sm { min-width: 22px; height: 22px; font-size: .74rem; }
+
 /* ---- Leaderboard ---- */
 .leaderboard { display: flex; flex-direction: column; }
 .leaderboard > div {
@@ -1486,6 +1521,10 @@ button.formation-player { cursor: grab; }
   gap: 16px;
   padding: 32px clamp(16px, 4vw, 24px);
 }
+/* Lift real content above the ambient blobs, same rule as .app-shell.
+   Declared before the theme-toggle override below so that override's own
+   `position: absolute` wins despite equal selector specificity. */
+.login-page > *:not(.ambient) { position: relative; z-index: 1; }
 .login-page > .theme-toggle {
   position: absolute;
   top: max(16px, env(safe-area-inset-top));
@@ -1495,17 +1534,26 @@ button.formation-player { cursor: grab; }
   padding: clamp(24px, 4vw, 34px);
   border-radius: var(--r-xl);
   box-shadow: var(--e-3);
+  text-align: center;
 }
-/* Brand mark above the heading */
-.login-card > .eyebrow::before {
-  content: "⚽";
-  display: block;
-  font-size: 2.4rem;
-  line-height: 1;
-  margin-bottom: 14px;
-  filter: drop-shadow(0 0 18px var(--acc-glow));
+/* Brand mark above the heading — a real icon in a glowing badge rather than
+   an emoji, so it renders identically everywhere and can take the accent
+   color instead of an OS-drawn emoji's own fixed colors. */
+.login-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 16px;
+  border-radius: var(--r-lg);
+  background: var(--acc-dim);
+  color: var(--acc);
+  box-shadow: 0 0 0 1px var(--line), 0 8px 24px var(--acc-glow);
 }
-.login-card h1 { margin-bottom: 22px; }
+.login-eyebrow { text-align: center; }
+.login-title { margin-bottom: 24px; }
+.login-demo-note { text-align: start; }
 .login-grid { grid-template-columns: 1fr; }
 .login-grid button { grid-column: 1 / -1; }
 .login-card small {
@@ -1856,13 +1904,28 @@ button.formation-player { cursor: grab; }
   white-space: normal;
 }
 .fixture-row strong { font-size: .95rem; font-weight: 700; }
-.fixture-row span { font-size: .84rem; color: var(--ink-2); }
+.fixture-row > span { display: flex; align-items: center; gap: 5px; font-size: .84rem; color: var(--ink-2); }
+.fixture-row > span svg { width: 14px; height: 14px; color: var(--ink-4); flex: none; }
 .fixture-row.selected {
   background: var(--acc-dim);
   border-color: var(--acc);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--acc) 20%, transparent);
 }
 .fixture-row.selected strong { color: var(--acc); }
+.fixture-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.fixture-meta small {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  background: var(--surface-2);
+  border-radius: var(--r-pill);
+  color: var(--ink-3);
+  font-size: .74rem;
+  font-weight: 600;
+}
+.fixture-meta small svg { width: 12px; height: 12px; flex: none; }
+.fixture-row.selected .fixture-meta small { background: var(--surface); }
 
 /* ==========================================================================
    TEAM BUILDER — drag & drop
@@ -2227,30 +2290,32 @@ tbody button { min-height: 38px; padding: 8px 14px; font-size: .84rem; }
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 13px 16px;
+  padding: 12px 12px 12px 16px;
   background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-lg);
   box-shadow: var(--e-3);
-  animation: toast-in .28s var(--ease);
+  animation: toast-in .32s var(--ease);
 }
 @keyframes toast-in {
-  from { opacity: 0; transform: translateY(14px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateY(14px) scale(.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
 }
-.toast strong {
-  padding: 3px 10px;
-  border-radius: var(--r-pill);
-  font-size: .74rem;
-  font-weight: 700;
-  white-space: nowrap;
+.toast-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  flex: none;
 }
 .toast span { flex: 1; font-size: .89rem; font-weight: 500; }
-.toast button { min-height: 34px; padding: 5px 12px; font-size: .8rem; }
+.toast-close { width: 32px; min-width: 32px; height: 32px; min-height: 0; }
 .toast.success { border-color: color-mix(in srgb, var(--ok) 40%, transparent); }
-.toast.success strong { background: var(--ok-dim); color: var(--ok); }
+.toast.success .toast-icon { background: var(--ok-dim); color: var(--ok); }
 .toast.error { border-color: color-mix(in srgb, var(--bad) 40%, transparent); }
-.toast.error strong { background: var(--bad-dim); color: var(--bad); }
+.toast.error .toast-icon { background: var(--bad-dim); color: var(--bad); }
 
 body.modal-open {
   position: fixed;
@@ -3333,54 +3398,62 @@ html, body { max-width: 100%; overflow-x: hidden; touch-action: manipulation; }
   }
   .app-shell {
     padding-inline: max(12px, env(safe-area-inset-left));
-    /* Room for the fixed bottom nav. */
-    padding-bottom: calc(66px + env(safe-area-inset-bottom));
+    /* Room for the floating bottom nav (its own height + the margin that
+       detaches it from the screen edge). */
+    padding-bottom: calc(78px + env(safe-area-inset-bottom));
   }
 
-  /* Primary nav sits at the bottom, where thumbs actually reach. */
+  /* Primary nav floats above the edge, thumb reach — a detached rounded bar
+     rather than a flush-to-edge strip, so it reads as a deliberate control
+     floating over the content instead of a leftover browser toolbar. */
   .segmented {
     position: fixed;
-    inset-inline: 0;
-    bottom: 0;
+    inset-inline: 12px;
+    bottom: max(12px, env(safe-area-inset-bottom));
     z-index: 50;
     order: 0;
-    width: 100%;
-    gap: 0;
-    padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
-    background: rgba(var(--chrome-rgb), .94);
-    backdrop-filter: blur(18px) saturate(140%);
-    -webkit-backdrop-filter: blur(18px) saturate(140%);
-    border: 0;
-    border-top: 1px solid var(--line);
-    border-radius: 0;
+    width: auto;
+    gap: 2px;
+    padding: 6px;
+    background: rgba(var(--chrome-rgb), .96);
+    backdrop-filter: blur(20px) saturate(150%);
+    -webkit-backdrop-filter: blur(20px) saturate(150%);
+    border: 1.5px solid var(--line);
+    border-radius: var(--r-xl);
+    box-shadow: var(--e-3);
     overflow: visible;
   }
   .segmented button {
     flex: 1 1 0;
     flex-direction: column;
-    gap: 3px;
-    min-height: 50px;
+    gap: 2px;
+    min-height: 52px;
     padding: 6px 2px;
-    font-size: .68rem;
+    font-size: .64rem;
     font-weight: 600;
-    border-radius: var(--r-sm);
+    border-radius: var(--r-md);
   }
-  .segmented button svg { width: 20px; height: 20px; }
+  .segmented button svg {
+    width: 20px;
+    height: 20px;
+    padding: 2px;
+    border-radius: var(--r-sm);
+    transition: background .18s var(--ease), color .18s var(--ease), transform .18s var(--ease);
+    box-sizing: content-box;
+  }
   .segmented button.active {
     background: transparent;
     color: var(--acc);
     box-shadow: none;
     font-weight: 700;
   }
-  /* Active indicator instead of a filled pill — lighter at this size. */
-  .segmented button.active::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    width: 22px;
-    height: 3px;
-    border-radius: 0 0 3px 3px;
-    background: var(--acc);
+  /* A filled rounded chip behind the icon, not a hairline — reads as a
+     real tab-bar selection (iOS/Android convention) instead of a browser
+     underline. */
+  .segmented button.active svg {
+    background: var(--acc-dim);
+    color: var(--acc);
+    transform: translateY(-1px);
   }
   .segmented button { position: relative; }
 
@@ -3388,9 +3461,9 @@ html, body { max-width: 100%; overflow-x: hidden; touch-action: manipulation; }
   .toolbar { width: auto; }
   .topbar > div:first-child { flex: 1 1 auto; }
 
-  /* Toast must clear the bottom nav. */
+  /* Toast must clear the floating bottom nav. */
   .toast {
-    bottom: calc(72px + env(safe-area-inset-bottom));
+    bottom: calc(84px + env(safe-area-inset-bottom));
     /* Stretch to the safe width instead of hugging the text, so longer
        messages wrap instead of pushing against the screen edges. */
     width: auto;
@@ -3400,8 +3473,8 @@ html, body { max-width: 100%; overflow-x: hidden; touch-action: manipulation; }
     padding: 12px 14px;
   }
   .toast span { font-size: .86rem; }
-  .toast strong { flex: none; }
-  .toast button { flex: none; }
+  .toast-icon { flex: none; }
+  .toast-close { flex: none; }
 
   /* Admin tab strip: edge-to-edge scroller with a fade hint. Chips are
      outlined rather than filled, matching the bottom nav's lighter,
