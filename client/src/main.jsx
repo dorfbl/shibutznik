@@ -213,6 +213,12 @@ function useApi(user) {
     }
     try {
       const response = await fetch(`${API}/api/bootstrap`, { headers: authHeaders(user) });
+      // Expired or revoked session: drop it and land back on the login screen.
+      if (response.status === 401) {
+        localStorage.removeItem("badat:user");
+        window.location.reload();
+        return;
+      }
       if (!response.ok) throw new Error("טעינת הנתונים נכשלה");
       const data = await response.json();
       setState({ loading: false, error: null, data });
@@ -666,7 +672,7 @@ function LoginScreen({ onLogin, theme, onToggleTheme, setToast }) {
         return;
       }
       setOrgChoices(null);
-      onLogin(payload.user);
+      onLogin({ ...payload.user, token: payload.token });
     } catch {
       setError("לא ניתן להתחבר לשרת");
     } finally {
@@ -889,7 +895,7 @@ function PlayerHome({ player, bundle, subscription, reload, setToast, askConfirm
   async function submit(attending) {
     const response = await fetch(`${API}/api/matches/${bundle.match.id}/register`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify({ playerId: player.id, attending })
     });
     const payload = await response.json();
@@ -904,7 +910,7 @@ function PlayerHome({ player, bundle, subscription, reload, setToast, askConfirm
   async function cancel(reason) {
     await fetch(`${API}/api/matches/${bundle.match.id}/cancel`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify({ playerId: player.id, reason: reason || "ביטול דרך הדשבורד" })
     });
     await reload();
@@ -925,7 +931,7 @@ function PlayerHome({ player, bundle, subscription, reload, setToast, askConfirm
   async function subscribeToOpenSubscription() {
     const response = await fetch(`${API}/api/subscriptions/${subscription.id}/signup`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify({ playerId: player.id })
     });
     if (!response.ok) {
@@ -1583,7 +1589,7 @@ function ProfileStats({ player, reload, setToast, organizations, activeOrgId, on
   const [notifStatus, setNotifStatus] = useState("off");
   useEffect(() => {
     if (!player?.id) return;
-    fetch(`${API}/api/players/${player.id}/stats`).then((response) => response.json()).then(setStats);
+    fetch(`${API}/api/players/${player.id}/stats`, { headers: authHeaders() }).then((response) => response.json()).then(setStats);
   }, [player?.id]);
 
   useEffect(() => {
@@ -1836,7 +1842,7 @@ function SubscriptionCard({ subscription, player, reload, setToast, askConfirm, 
   async function post(path, body) {
     const response = await fetch(`${API}${path}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify(body)
     });
     const payload = await response.json().catch(() => ({}));
@@ -2113,7 +2119,7 @@ function PlayerStatsModal({ player, onClose }) {
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`${API}/api/players/${player.id}/stats`)
+    fetch(`${API}/api/players/${player.id}/stats`, { headers: authHeaders() })
       .then((response) => response.json())
       .then((payload) => { if (!cancelled) setStats(payload); });
     return () => { cancelled = true; };
@@ -3245,7 +3251,7 @@ async function disablePushNotifications(setToast) {
   await subscription.unsubscribe();
   await fetch(`${API}/api/push/unsubscribe`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({ endpoint })
   });
   // A deliberate turn-off is a fresh decision, not the earlier "not now" —
@@ -7896,9 +7902,13 @@ function registrationModeLabel(match) {
   return "ההרשמה סגורה";
 }
 
+// A stored session without a signed token predates token auth (or was
+// tampered with) — treat it as signed out so the login screen shows,
+// instead of firing requests the server will reject.
 function readStoredUser() {
   try {
-    return JSON.parse(localStorage.getItem("badat:user") || "null");
+    const user = JSON.parse(localStorage.getItem("badat:user") || "null");
+    return user?.token ? user : null;
   } catch {
     return null;
   }
@@ -7955,10 +7965,15 @@ function inviteLink(joinCode) {
   return url.toString();
 }
 
-function authHeaders(user) {
-  if (!user?.id) return {};
-  const headers = { "x-user-id": user.id };
-  if (user.org_id) headers["x-org-id"] = user.org_id;
+// Always the signed-in session from login (its signed token + active org),
+// never whatever player object a caller happens to pass — roster entries
+// carry no token. The argument is ignored and kept only so existing call
+// sites read the same.
+function authHeaders() {
+  const session = readStoredUser();
+  if (!session?.token) return {};
+  const headers = { Authorization: `Bearer ${session.token}` };
+  if (session.org_id) headers["x-org-id"] = session.org_id;
   return headers;
 }
 

@@ -126,8 +126,47 @@ function phoneLookupCandidates(raw) {
   return [...candidates];
 }
 
+// Sessions: login hands the client a signed token, and every request proves
+// who it is with `Authorization: Bearer <token>`. The token is
+// base64url(JSON {sub, exp}) + "." + HMAC-SHA256 of that part, keyed by
+// SESSION_SECRET — the server never trusts a bare user id from the client.
+// Stateless, so logging out is client-side; rotating SESSION_SECRET signs
+// everyone out at once.
+const SESSION_SECRET = process.env.SESSION_SECRET || "";
+if (SESSION_SECRET.length < 32) {
+  throw new Error("SESSION_SECRET must be set (at least 32 characters) — see .env");
+}
+const SESSION_TTL_MS = 60 * 24 * 60 * 60 * 1000; // 60 days
+
+function signSession(payloadPart) {
+  return crypto.createHmac("sha256", SESSION_SECRET).update(payloadPart).digest("base64url");
+}
+
+function createSessionToken(userId) {
+  const payloadPart = Buffer.from(JSON.stringify({ sub: userId, exp: Date.now() + SESSION_TTL_MS })).toString("base64url");
+  return `${payloadPart}.${signSession(payloadPart)}`;
+}
+
+// Returns the user id the token was issued for, or null if it is missing,
+// malformed, tampered with or expired.
+function verifySessionToken(token) {
+  const [payloadPart, signature, extra] = String(token || "").split(".");
+  if (!payloadPart || !signature || extra !== undefined) return null;
+  const expected = Buffer.from(signSession(payloadPart));
+  const given = Buffer.from(signature);
+  if (given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) return null;
+  try {
+    const { sub, exp } = JSON.parse(Buffer.from(payloadPart, "base64url").toString("utf8"));
+    if (typeof sub !== "string" || typeof exp !== "number" || exp < Date.now()) return null;
+    return sub;
+  } catch {
+    return null;
+  }
+}
+
 async function currentUser(req) {
-  const id = req.header("x-user-id");
+  const bearer = /^Bearer\s+(.+)$/i.exec(req.header("authorization") || "");
+  const id = verifySessionToken(bearer?.[1]);
   if (!id) return null;
   // credits is deliberately not on publicPlayerSelect (shared with rosters
   // visible to teammates) — it's only ever added here, on the caller's own
@@ -545,7 +584,7 @@ app.post("/api/login", asyncRoute(async (req, res) => {
        VALUES ($1, $2, 'login', 'player', $2)`,
       [match.org_id, match.id]
     );
-    return res.json({ user: match });
+    return res.json({ user: match, token: createSessionToken(match.id) });
   }
 
   if (!candidates.length) {
@@ -571,7 +610,7 @@ app.post("/api/login", asyncRoute(async (req, res) => {
      VALUES ($1, $2, 'login', 'player', $2)`,
     [user.org_id, user.id]
   );
-  res.json({ user });
+  res.json({ user, token: createSessionToken(user.id) });
 }));
 
 app.get("/api/bootstrap", asyncRoute(async (_req, res) => {
@@ -2679,7 +2718,11 @@ async function matchIdForPitch(pitchId) {
 
 app.post("/api/matches/:matchId/register", asyncRoute(async (req, res) => {
   const { matchId } = req.params;
-  const { playerId, attending } = req.body;
+  const user = await currentUser(req);
+  if (!user) return res.status(401).json({ error: "נדרשת התחברות" });
+  // Always the signed-in player — never a playerId from the request body.
+  const playerId = user.id;
+  const { attending } = req.body;
   const status = attending ? "standby" : "not_attending";
   // The match and the player must belong to the SAME organization.
   const { rows: guardRows } = await query(
@@ -2737,7 +2780,10 @@ app.post("/api/matches/:matchId/register", asyncRoute(async (req, res) => {
 
 app.post("/api/matches/:matchId/cancel", asyncRoute(async (req, res) => {
   const { matchId } = req.params;
-  const { playerId, reason } = req.body;
+  const user = await currentUser(req);
+  if (!user) return res.status(401).json({ error: "נדרשת התחברות" });
+  const playerId = user.id;
+  const { reason } = req.body;
   const { rows: owner } = await query(
     `SELECT org_id FROM registrations WHERE match_id = $1 AND player_id = $2`,
     [matchId, playerId]
@@ -2764,12 +2810,14 @@ app.post("/api/matches/:matchId/cancel", asyncRoute(async (req, res) => {
 }));
 
 // ---- Player-facing monthly subscription signup ----
-// Unauthenticated-but-org-scoped, same as the match register/cancel routes
-// above: playerId travels in the body rather than through currentUser(req).
+// Signed-in only, and always for the caller themselves (currentUser), same
+// as the match register/cancel routes above.
 
 app.post("/api/subscriptions/:id/signup", asyncRoute(async (req, res) => {
   const { id } = req.params;
-  const { playerId } = req.body;
+  const user = await currentUser(req);
+  if (!user) return res.status(401).json({ error: "נדרשת התחברות" });
+  const playerId = user.id;
   const { rows: subRows } = await query("SELECT * FROM monthly_subscriptions WHERE id = $1", [id]);
   const subscription = subRows[0];
   if (!subscription) return res.status(404).json({ error: "מנוי לא נמצא" });
@@ -2795,7 +2843,9 @@ app.post("/api/subscriptions/:id/signup", asyncRoute(async (req, res) => {
 
 app.post("/api/subscriptions/:id/cancel-signup", asyncRoute(async (req, res) => {
   const { id } = req.params;
-  const { playerId } = req.body;
+  const user = await currentUser(req);
+  if (!user) return res.status(401).json({ error: "נדרשת התחברות" });
+  const playerId = user.id;
   const { rows: signupRows } = await query(
     "SELECT * FROM subscription_signups WHERE subscription_id = $1 AND player_id = $2",
     [id, playerId]
@@ -2817,7 +2867,10 @@ app.post("/api/subscriptions/:id/cancel-signup", asyncRoute(async (req, res) => 
 // globally unique per device/browser, so re-subscribing upserts cleanly.
 
 app.post("/api/push/subscribe", asyncRoute(async (req, res) => {
-  const { playerId, subscription } = req.body;
+  const user = await currentUser(req);
+  if (!user) return res.status(401).json({ error: "נדרשת התחברות" });
+  const playerId = user.id;
+  const { subscription } = req.body;
   if (!subscription?.endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth) {
     return res.status(400).json({ error: "מנוי התראות לא תקין" });
   }
@@ -2835,9 +2888,12 @@ app.post("/api/push/subscribe", asyncRoute(async (req, res) => {
 }));
 
 app.post("/api/push/unsubscribe", asyncRoute(async (req, res) => {
+  const user = await currentUser(req);
+  if (!user) return res.status(401).json({ error: "נדרשת התחברות" });
   const { endpoint } = req.body;
   if (!endpoint) return res.status(400).json({ error: "חסר endpoint" });
-  await query("DELETE FROM push_subscriptions WHERE endpoint = $1", [endpoint]);
+  // Only your own device's subscription.
+  await query("DELETE FROM push_subscriptions WHERE endpoint = $1 AND player_id = $2", [endpoint, user.id]);
   res.json({ ok: true });
 }));
 
@@ -3022,9 +3078,19 @@ app.delete("/api/pitches/:pitchId/games/:gameId/goals/:goalId", asyncRoute(async
 
 app.get("/api/players/:playerId/stats", asyncRoute(async (req, res) => {
   const { playerId } = req.params;
+  // Signed-in members only, and only for players in the caller's own club.
+  const user = await currentUser(req);
+  if (!user) return res.status(401).json({ error: "נדרשת התחברות" });
   const { rows: ownerRows } = await query("SELECT org_id FROM players WHERE id = $1", [playerId]);
   if (!ownerRows[0]) return res.status(404).json({ error: "שחקן לא נמצא" });
   const orgId = ownerRows[0].org_id;
+  if (orgId !== user.org_id) {
+    const { rows: shared } = await query(
+      "SELECT 1 FROM player_organizations WHERE player_id = $1 AND org_id = $2 AND status = 'active'",
+      [playerId, user.org_id]
+    );
+    if (!shared.length) return res.status(404).json({ error: "שחקן לא נמצא" });
+  }
   const [player, goals, assists, appearances, history] = await Promise.all([
     query(`SELECT ${playerFields} FROM players WHERE id = $1 AND org_id = $2`, [playerId, orgId]),
     query("SELECT COUNT(*)::int AS count FROM goal_events WHERE scorer_id = $1 AND org_id = $2", [playerId, orgId]),

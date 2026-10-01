@@ -4510,14 +4510,39 @@ html, body { max-width: 100%; overflow-x: hidden; touch-action: manipulation; }
   .topbar-row .segmented { flex: 1 1 100%; justify-content: center; }
 }
 
-/* Orange is kept for the one primary action per screen. The admin's two
-   inner tab rows mark their selection quietly instead of stacking three
-   orange pills under the main nav. */
-.admin-groups button.active {
-  background: var(--surface-3);
-  border-color: var(--line-hover);
-  color: var(--ink);
+/* Orange is kept for the one primary action per screen, so the admin's
+   inner tab rows don't use it. The two group buttons (ניהול מחזור /
+   ניהול מועדון) are a two-way switch: one track, the active side filled
+   solid turf green with a check mark, the other side plain dimmed text —
+   so which one is selected reads at a glance. */
+.admin-groups {
+  gap: 4px;
+  padding: 4px;
+  background: var(--sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+}
+.admin-groups button {
+  background: transparent;
+  border: 0;
+  border-radius: calc(var(--r-md) - 4px);
+  color: var(--ink-3);
+  font-weight: 600;
   box-shadow: none;
+}
+.admin-groups button:hover:not(.active):not(:disabled) { background: var(--surface-2); color: var(--ink-2); }
+.admin-groups button.active,
+.admin-groups button.active:hover {
+  background: var(--turf);
+  border: 0;
+  color: var(--turf-ink);
+  font-weight: 800;
+  box-shadow: 0 1px 2px rgba(0,0,0,.25);
+}
+.admin-groups button.active::after {
+  content: "✓";
+  margin-inline-start: 6px;
+  font-weight: 800;
 }
 .admin-tabs button.active {
   background: var(--turf-dim);
