@@ -2918,6 +2918,20 @@ app.post("/api/subscriptions/:id/cancel-signup", asyncRoute(async (req, res) => 
 // A player can have several subscriptions (phone, laptop, ...) — endpoint is
 // globally unique per device/browser, so re-subscribing upserts cleanly.
 
+// A player clearing a notification from their own bell: removes only their
+// recipient row. The sent notification (notification_log, the admin's
+// history) and every other player's copy stay as they are.
+app.delete("/api/notifications/:id", asyncRoute(async (req, res) => {
+  const user = await currentUser(req);
+  if (!user) return res.status(401).json({ error: "נדרשת התחברות" });
+  if (!/^[0-9a-f-]{36}$/i.test(req.params.id)) return res.status(404).json({ error: "ההתראה לא נמצאה" });
+  await query(
+    "DELETE FROM notification_recipients WHERE notification_id = $1 AND player_id = $2",
+    [req.params.id, user.id]
+  );
+  res.json({ ok: true });
+}));
+
 app.post("/api/push/subscribe", asyncRoute(async (req, res) => {
   const user = await currentUser(req);
   if (!user) return res.status(401).json({ error: "נדרשת התחברות" });

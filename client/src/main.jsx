@@ -529,7 +529,14 @@ function App() {
             </button>
           </div>
         </header>
-        {notifOpen && <NotificationCenter notifications={data?.notifications || []} onClose={() => setNotifOpen(false)} />}
+        {notifOpen && (
+          <NotificationCenter
+            notifications={data?.notifications || []}
+            onClose={() => setNotifOpen(false)}
+            onDeleted={reload}
+            setToast={setToast}
+          />
+        )}
         {profileOpen && (
           <ProfileStats
             player={selectedPlayer}
@@ -1779,8 +1786,24 @@ function RecentMatch({ bundle, player }) {
 // if they never enabled push at all) — a bottom sheet listing everything
 // they were ever sent, newest first. Same sheet chrome as FixtureStatusSheet
 // (.notif-sheet shares its CSS with .status-sheet — see styles.css).
-function NotificationCenter({ notifications, onClose }) {
+function NotificationCenter({ notifications, onClose, onDeleted, setToast }) {
   useBackButtonClose(onClose);
+  // Removed rows disappear at once; the server call follows, and a refused
+  // one comes back with a message instead of silently staying gone.
+  const [removed, setRemoved] = useState(() => new Set());
+  const visible = notifications.filter((row) => !removed.has(row.id));
+
+  async function remove(id) {
+    setRemoved((current) => new Set(current).add(id));
+    try {
+      const response = await fetch(`${API}/api/notifications/${id}`, { method: "DELETE", headers: authHeaders() });
+      if (!response.ok) throw new Error();
+      onDeleted?.();
+    } catch {
+      setRemoved((current) => { const next = new Set(current); next.delete(id); return next; });
+      showToast(setToast, "מחיקת ההתראה נכשלה", "error");
+    }
+  }
 
   useEffect(() => {
     const scrollY = window.scrollY;
@@ -1811,11 +1834,20 @@ function NotificationCenter({ notifications, onClose }) {
           <h2 id="notif-sheet-title">התראות</h2>
           <button className="modal-close" aria-label="סגירה" onClick={onClose}><X size={18} /></button>
         </div>
-        {!notifications.length && <p className="notif-empty">עדיין לא קיבלת התראות</p>}
-        {notifications.length > 0 && (
+        {!visible.length && <p className="notif-empty">עדיין לא קיבלת התראות</p>}
+        {visible.length > 0 && (
           <div className="notif-list">
-            {notifications.map((row) => (
+            {visible.map((row) => (
               <div className="notif-row" key={row.id}>
+                <button
+                  type="button"
+                  className="notif-delete"
+                  aria-label={`מחיקת ההתראה: ${row.title}`}
+                  title="מחיקה"
+                  onClick={() => remove(row.id)}
+                >
+                  <Trash2 size={15} />
+                </button>
                 <strong>{row.title}</strong>
                 <p>{row.body}</p>
                 <small>{new Date(row.created_at).toLocaleString("he-IL")}</small>
