@@ -131,7 +131,7 @@ function phoneLookupCandidates(raw) {
 // everyone out at once.
 const SESSION_SECRET = process.env.SESSION_SECRET || "";
 if (SESSION_SECRET.length < 32) {
-  throw new Error("SESSION_SECRET must be set (at least 32 characters) — see .env");
+  throw new Error("SESSION_SECRET must be set (at least 32 characters). See .env");
 }
 const SESSION_TTL_MS = 60 * 24 * 60 * 60 * 1000; // 60 days
 
@@ -605,7 +605,7 @@ app.post("/api/login", asyncRoute(async (req, res) => {
   // callers rather than a path that UI reaches.
   if (candidates.length > 1) {
     return res.status(409).json({
-      error: "המספר הזה רשום בכמה ארגונים — יש לבחור ארגון",
+      error: "המספר הזה רשום בכמה ארגונים. יש לבחור ארגון",
       needsOrg: true,
       organizations: candidates.map((row) => ({ org_id: row.org_id, name: row.org_name, slug: row.org_slug }))
     });
@@ -780,7 +780,7 @@ app.post("/api/platform/organizations/:orgId/admins", asyncRoute(async (req, res
     playerName = existing[0].full_name;
   } else {
     if (!fullName || !String(fullName).trim()) {
-      return res.status(400).json({ error: "שחקן עם הטלפון הזה לא נמצא — יש להזין שם מלא ליצירת משתמש חדש" });
+      return res.status(400).json({ error: "שחקן עם הטלפון הזה לא נמצא. יש להזין שם מלא ליצירת משתמש חדש" });
     }
     const { rows: created } = await query(
       `INSERT INTO players (org_id, full_name, phone, password_hash, status, role, avatar_url)
@@ -1486,7 +1486,7 @@ app.post("/api/players/check-phone", asyncRoute(async (req, res) => {
   const joinCode = String(req.body?.joinCode || "").trim();
   if (!phone || !joinCode) return res.status(400).json({ error: "חסרים פרטים" });
   if (!normalizeIsraeliMobile(phone)) {
-    return res.status(400).json({ error: "מספר טלפון לא תקין — יש להזין מספר סלולרי ישראלי תקין" });
+    return res.status(400).json({ error: "מספר טלפון לא תקין. יש להזין מספר סלולרי ישראלי תקין" });
   }
   const { rows: orgRows } = await query(
     "SELECT id FROM organizations WHERE is_active AND upper(join_code) = upper($1)",
@@ -1511,7 +1511,7 @@ app.post("/api/players", asyncRoute(async (req, res) => {
   // not a landline — and it's normalized to E.164 for storage from here on.
   const normalizedPhone = normalizeIsraeliMobile(phone);
   if (!normalizedPhone) {
-    return res.status(400).json({ error: "מספר טלפון לא תקין — יש להזין מספר סלולרי ישראלי תקין" });
+    return res.status(400).json({ error: "מספר טלפון לא תקין. יש להזין מספר סלולרי ישראלי תקין" });
   }
   // Unauthenticated request. Slugs are guessable, so the join code — not the
   // slug — is what proves the applicant was actually invited to this club.
@@ -1638,7 +1638,7 @@ app.patch("/api/admin/players/:playerId", asyncRoute(async (req, res) => {
   if (phone !== undefined && phone !== null && phone !== before[0].phone) {
     normalizedPhone = normalizeIsraeliMobile(phone);
     if (!normalizedPhone) {
-      return res.status(400).json({ error: "מספר טלפון לא תקין — יש להזין מספר סלולרי ישראלי תקין" });
+      return res.status(400).json({ error: "מספר טלפון לא תקין. יש להזין מספר סלולרי ישראלי תקין" });
     }
   }
   const { rows } = await query(
@@ -2354,7 +2354,7 @@ app.post("/api/admin/matches/:matchId/autobalance", asyncRoute(async (req, res) 
     [matchId, orgId]
   );
   if (!teamRows[0].count) {
-    return res.status(400).json({ error: "אין מגרשים או קבוצות במחזור — צריך ליצור מגרשים לפני חלוקה" });
+    return res.status(400).json({ error: "אין מגרשים או קבוצות במחזור. צריך ליצור מגרשים לפני חלוקה" });
   }
   const { rows: playerRows } = await query(
     `SELECT COUNT(*)::int AS count FROM registrations
@@ -2904,7 +2904,7 @@ app.post("/api/subscriptions/:id/cancel-signup", asyncRoute(async (req, res) => 
   );
   const signup = signupRows[0];
   if (!signup) return res.status(404).json({ error: "הרשמה לא נמצאה" });
-  if (signup.paid) return res.status(400).json({ error: "כבר סומן כשולם — יש לפנות למנהל" });
+  if (signup.paid) return res.status(400).json({ error: "כבר סומן כשולם. יש לפנות למנהל" });
   await query("DELETE FROM subscription_signups WHERE id = $1", [signup.id]);
   await query(
     `INSERT INTO audit_log (org_id, actor_id, action, entity_type, entity_id)

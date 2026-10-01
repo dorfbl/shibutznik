@@ -427,7 +427,7 @@ function App() {
     if (shortTeams > seenShortRef.current) {
       showToast(
         setToast,
-        shortTeams === 1 ? "קבוצה אחת חסרה שחקן — צריך לשבץ מחליף" : `${shortTeams} קבוצות חסרות שחקנים`,
+        shortTeams === 1 ? "קבוצה אחת חסרה שחקן. צריך לשבץ מחליף" : `${shortTeams} קבוצות חסרות שחקנים`,
         "error"
       );
     }
@@ -1923,7 +1923,7 @@ function PushNotificationPrompt({ player, setToast }) {
       <Bell size={22} className="push-prompt-icon" aria-hidden="true" />
       <div className="push-prompt-copy">
         <h2>הישארו מעודכנים</h2>
-        <p>קבלו התראה כשההרשמה נפתחת, ההרכבים מתפרסמים ועוד — בלי לפתוח את האפליקציה כל הזמן.</p>
+        <p>קבלו התראה כשההרשמה נפתחת, ההרכבים מתפרסמים ועוד, בלי לפתוח את האפליקציה כל הזמן.</p>
       </div>
       <div className="push-prompt-actions">
         <button className="primary" onClick={enable} disabled={busy}>הפעלת התראות</button>
@@ -1996,7 +1996,7 @@ function SubscriptionCard({ subscription, player, reload, setToast, askConfirm, 
       {!mySignup && <button className="primary" onClick={subscribe}>הצטרפות למנוי</button>}
       {mySignup && !mySignup.paid && (
         <>
-          <div className="notice"><Bell size={18} />ההרשמה נקלטה — ממתין לתשלום</div>
+          <div className="notice"><Bell size={18} />ההרשמה נקלטה. ממתין לתשלום</div>
           <button onClick={confirmCancelSignup}>ביטול הרשמה</button>
         </>
       )}
@@ -2254,9 +2254,9 @@ function PlayerStatsModal({ player, onClose }) {
         <img className="avatar player-stats-avatar" src={player.avatar_url} alt="" />
         <h2 id="player-stats-title">{player.full_name}</h2>
         <div className="stat-grid">
-          <Metric icon={CalendarDays} label="משחקים" value={stats?.totals.appearances ?? "—"} />
-          <Metric icon={Goal} label="שערים" value={stats?.totals.goals ?? "—"} />
-          <Metric icon={Activity} label="בישולים" value={stats?.totals.assists ?? "—"} />
+          <Metric icon={CalendarDays} label="משחקים" value={stats?.totals.appearances ?? "-"} />
+          <Metric icon={Goal} label="שערים" value={stats?.totals.goals ?? "-"} />
+          <Metric icon={Activity} label="בישולים" value={stats?.totals.assists ?? "-"} />
         </div>
         {stats?.history?.length > 0 && (
           <div className="player-stats-history">
@@ -2485,7 +2485,7 @@ function CancellationAlerts({ rows, mutate, setSelectedMatchId }) {
                   className="primary"
                   onClick={() => mutate(`/api/admin/registrations/${row.id}`, {
                     body: { cancellation_review: "אושר זיכוי", credited: true },
-                    success: "הביטול אושר — נוסף זיכוי לשחקן"
+                    success: "הביטול אושר ונוסף זיכוי לשחקן"
                   })}
                 >
                   אשר זיכוי
@@ -2643,8 +2643,8 @@ function UnderstaffedAlerts({ rows, onGoToTeams }) {
         <span className="alert-badge danger">{totalMissing}</span>
         <span className="alert-title">
           {rows.length === 1
-            ? "קבוצה חסרה שחקנים — צריך למלא את המקום"
-            : "קבוצות חסרות שחקנים — צריך למלא את המקומות"}
+            ? "קבוצה חסרה שחקנים. צריך למלא את המקום"
+            : "קבוצות חסרות שחקנים. צריך למלא את המקומות"}
         </span>
         <button className="primary alert-cta" onClick={onGoToTeams}>לבנאי הקבוצות</button>
       </div>
@@ -2752,7 +2752,7 @@ function AdminView({ data, reload, refreshAll, user, selectedMatchId, setSelecte
       payload = await response.json().catch(() => ({}));
     } catch (error) {
       // Never fail silently: a dropped request used to look like "nothing happened".
-      showToast(setToast, "השרת לא זמין — הפעולה לא בוצעה", "error");
+      showToast(setToast, "השרת לא זמין, הפעולה לא בוצעה", "error");
       return null;
     }
     if (!response.ok) {
@@ -2785,7 +2785,7 @@ function AdminView({ data, reload, refreshAll, user, selectedMatchId, setSelecte
     if (!template) return;
     askConfirm({
       title: "לשלוח התראה לשחקנים?",
-      text: `${template.title} — ${template.body}\n\nנשלח אל: ${audienceLabel}`,
+      text: `${template.title}\n${template.body}\n\nנשלח אל: ${audienceLabel}`,
       confirmLabel: "שליחת התראה",
       cancelLabel: "לא עכשיו",
       onConfirm: () => mutate("/api/admin/notifications/send", {
@@ -2913,7 +2913,7 @@ function PlatformAdminView({ user, setToast }) {
       });
       payload = await response.json().catch(() => ({}));
     } catch {
-      showToast(setToast, "השרת לא זמין — הפעולה לא בוצעה", "error");
+      showToast(setToast, "השרת לא זמין, הפעולה לא בוצעה", "error");
       return null;
     }
     if (!response.ok) {
@@ -2994,7 +2994,7 @@ function PlatformAdminView({ user, setToast }) {
                       await navigator.clipboard.writeText(inviteLink(org.join_code));
                       showToast(setToast, "קישור ההצטרפות הועתק", "success");
                     } catch {
-                      showToast(setToast, "לא ניתן היה להעתיק אוטומטית — הקוד: " + org.join_code, "error");
+                      showToast(setToast, "לא ניתן היה להעתיק אוטומטית. הקוד: " + org.join_code, "error");
                     }
                   }}
                 >
@@ -3328,7 +3328,7 @@ async function registerServiceWorker() {
 async function enablePushNotifications(player, setToast, silent = false) {
   const notify = (message, type) => { if (!silent) showToast(setToast, message, type); };
   if (!pushSupported()) {
-    notify("המכשיר הזה לא תומך בהתראות — ב-iPhone יש להוסיף קודם את האפליקציה למסך הבית", "error");
+    notify("המכשיר הזה לא תומך בהתראות. ב-iPhone יש להוסיף קודם את האפליקציה למסך הבית", "error");
     return false;
   }
   const registration = await registerServiceWorker();
@@ -3391,7 +3391,7 @@ function InviteLinkCard({ organization, setToast }) {
       await navigator.clipboard.writeText(link);
       showToast(setToast, "קישור ההצטרפות הועתק", "success");
     } catch {
-      showToast(setToast, "לא ניתן היה להעתיק אוטומטית — יש להעתיק ידנית", "error");
+      showToast(setToast, "לא ניתן היה להעתיק אוטומטית. יש להעתיק ידנית", "error");
     }
   }
 
@@ -3403,7 +3403,7 @@ function InviteLinkCard({ organization, setToast }) {
           <h2>קישור הזמנה</h2>
         </div>
       </div>
-      <InfoNote>שיתוף הקישור עם שחקן חדש (למשל בוואטסאפ) פותח עבורו טופס הרשמה ישירות — בלי שיצטרך להזין קוד ארגון בעצמו.</InfoNote>
+      <InfoNote>שיתוף הקישור עם שחקן חדש (למשל בוואטסאפ) פותח עבורו טופס הרשמה ישירות, בלי שיצטרך להזין קוד ארגון בעצמו.</InfoNote>
       <div className="inline-form">
         <input readOnly value={link} onFocus={(event) => event.target.select()} />
         <button className="primary" onClick={copy}>העתקת קישור</button>
@@ -3776,7 +3776,7 @@ function RankWeightsSettings({ settings, mutate }) {
         <button onClick={resetToDefault} disabled={locked}>איפוס לברירת מחדל</button>
       </div>
       <InfoNote>
-        קובע איך התקפה, הגנה וכושר מרכיבים את הדירוג הכולל של שחקן ואת חוזק הקבוצה בבנאי הקבוצות. שלושת הערכים תמיד מסתכמים ל-100%ֿ — הזזת סליידר אחד מתאימה את השניים האחרים באופן יחסי. הסליידרים נעולים כברירת מחדל כדי שגלילה בעמוד לא תזיז אותם בטעות — יש לפתוח לעריכה כדי לשנות.
+        קובע איך התקפה, הגנה וכושר מרכיבים את הדירוג הכולל של שחקן ואת חוזק הקבוצה בבנאי הקבוצות. שלושת הערכים תמיד מסתכמים ל-100%. הזזת סליידר אחד מתאימה את השניים האחרים באופן יחסי. הסליידרים נעולים כברירת מחדל כדי שגלילה בעמוד לא תזיז אותם בטעות. יש לפתוח לעריכה כדי לשנות.
       </InfoNote>
       <div className="audience-toggles">
         <button
@@ -4092,7 +4092,7 @@ function AdminNextStep({ bundle, onGoToTab }) {
 
 function AdminControl({ bundle, mutate, pendingPaymentsCount, pendingJoinRequestsCount, onGoToTab, offerNotification }) {
   if (!bundle) {
-    return <p className="muted">אין מחזור פעיל — יש ליצור מחזור חדש בלשונית "מחזורים"</p>;
+    return <p className="muted">אין מחזור פעיל. יש ליצור מחזור חדש בלשונית "מחזורים"</p>;
   }
   const match = bundle.match;
   return (
@@ -4191,7 +4191,7 @@ function AdminSubscription({ data, mutate, setToast }) {
         showToast(
           setToast,
           payload?.resetCount > 0
-            ? `המנוי פורסם — ${payload.resetCount} מנויים קודמים שלא שילמו הוסרו`
+            ? `המנוי פורסם. ${payload.resetCount} מנויים קודמים שלא שילמו הוסרו`
             : "המנוי פורסם",
           "success"
         );
@@ -4203,7 +4203,7 @@ function AdminSubscription({ data, mutate, setToast }) {
     mutate(`/api/admin/subscriptions/${subscription.id}/unpublish`, {
       method: "POST",
       confirm: "להסתיר את המנוי מהשחקנים?",
-      confirmText: "השחקנים לא יראו יותר את המנוי ולא יוכלו להצטרף. הרשמות ותשלומים קיימים יישארו כמו שהם — אפשר לפרסם שוב בהמשך.",
+      confirmText: "השחקנים לא יראו יותר את המנוי ולא יוכלו להצטרף. הרשמות ותשלומים קיימים יישארו כמו שהם. אפשר לפרסם שוב בהמשך.",
       confirmTone: "warning",
       success: "המנוי הוסתר מהשחקנים"
     });
@@ -4220,7 +4220,7 @@ function AdminSubscription({ data, mutate, setToast }) {
   function removeSignup(signup) {
     mutate(`/api/admin/subscriptions/${subscription.id}/signups/${signup.id}`, {
       method: "DELETE",
-      confirm: signup.paid ? "השחקן כבר סומן כשולם — להסיר בכל זאת?" : "להסיר את ההרשמה?",
+      confirm: signup.paid ? "השחקן כבר סומן כשולם. להסיר בכל זאת?" : "להסיר את ההרשמה?",
       confirmTone: signup.paid ? "danger" : "default",
       success: "ההרשמה הוסרה"
     });
@@ -4332,10 +4332,10 @@ function AdminSubscription({ data, mutate, setToast }) {
 // Starting points, not constraints — picking one just pre-fills the fields
 // below, every one of which stays freely editable afterward.
 const NOTIFICATION_TEMPLATES = [
-  { id: "reg_members", icon: Crown, label: "הרשמה נפתחה למנויים", title: "ההרשמה למחזור הבא נפתחה", body: "ההרשמה למחזור הבא נפתחה למנויים — תירשמו עכשיו!", audience: "members" },
-  { id: "reg_all", icon: Users, label: "הרשמה נפתחה לכולם", title: "ההרשמה למחזור הבא נפתחה לכולם", body: "ההרשמה למחזור הבא נפתחה גם לשחקנים חד־פעמיים — מספר המקומות מוגבל.", audience: "all" },
-  { id: "squad_published", icon: Trophy, label: "הרכבים פורסמו", title: "ההרכבים פורסמו", body: "ההרכבים למחזור הקרוב פורסמו — בואו לבדוק באיזה מגרש אתם משחקים.", audience: "match" },
-  { id: "roster_published", icon: ClipboardList, label: "רשימת נרשמים פורסמה", title: "רשימת הנרשמים פורסמה", body: "רשימת הנרשמים למחזור הקרוב פורסמה — בואו לבדוק מי מגיע.", audience: "match" },
+  { id: "reg_members", icon: Crown, label: "הרשמה נפתחה למנויים", title: "נפתחה הרשמה למנויים", body: "מנויים יקרים כנסו לאפליקציה ואשרו את הגעתכם למחזור הבא.", audience: "members" },
+  { id: "reg_all", icon: Users, label: "הרשמה נפתחה לחד־פעמיים", title: "נפתחה הרשמה לכניסה חד פעמית", body: "נפתחה ההרשמה למחזור הקרוב לכניסה חד פעמית.", audience: "one_timers" },
+  { id: "squad_published", icon: Trophy, label: "הרכבים פורסמו", title: "ההרכבים פורסמו", body: "ההרכבים למחזור הקרוב פורסמו. כנסו לאפליקציה לראות באיזה מגרש ובאיזו קבוצה אתם משחקים.", audience: "match" },
+  { id: "roster_published", icon: ClipboardList, label: "רשימת נרשמים פורסמה", title: "רשימת הנרשמים פורסמה", body: "רשימת הנרשמים למחזור הקרוב פורסמה. כנסו לאפליקציה לראות מי מגיע.", audience: "match" },
   { id: "payment_reminder", icon: Wallet, label: "תזכורת תשלום", title: "תזכורת תשלום", body: "תזכורת ידידותית להשלים את התשלום למחזור הקרוב 🙏", audience: "one_timers" },
   { id: "blank", icon: Pencil, label: "הודעה חופשית", title: "", body: "", audience: "all" }
 ];
@@ -5408,7 +5408,7 @@ function PlayerProfileOverlay({ player, user, mutate, onClose, weights }) {
         <article className="glass">
           <p className="eyebrow">זיכויים</p>
           <InfoNote>
-            זיכוי מתווסף אוטומטית כשמאשרים ביטול "עם זיכוי", ומתקזז אוטומטית בפעם הבאה שהשחקן נרשם כחד־פעמי — במקום תשלום.
+            זיכוי מתווסף אוטומטית כשמאשרים ביטול "עם זיכוי", ומתקזז אוטומטית בפעם הבאה שהשחקן נרשם כחד־פעמי, במקום תשלום.
           </InfoNote>
           <div className="rating-stepper">
             <button
@@ -5484,7 +5484,7 @@ function PlayerProfileOverlay({ player, user, mutate, onClose, weights }) {
               {registrationAnswers.map((answer) => (
                 <div className="note-item" key={answer.question_id}>
                   <small>{answer.label}</small>
-                  <p>{answer.value_list?.length ? answer.value_list.join(", ") : (answer.value || "—")}</p>
+                  <p>{answer.value_list?.length ? answer.value_list.join(", ") : (answer.value || "-")}</p>
                 </div>
               ))}
             </div>
@@ -5549,7 +5549,7 @@ function AdminRegistration({ bundle, players, mutate, user, weights }) {
   // Re-derive from the live list on every render (see AdminPlayers) rather
   // than holding a snapshot from when the overlay was opened.
   const profilePlayer = profilePlayerId ? players.find((item) => item.id === profilePlayerId) : null;
-  if (!bundle) return <p className="muted">אין מחזור פעיל — יש ליצור מחזור חדש בלשונית "מחזורים"</p>;
+  if (!bundle) return <p className="muted">אין מחזור פעיל. יש ליצור מחזור חדש בלשונית "מחזורים"</p>;
   const capacity = pitchCapacity(bundle.match);
   const queue = bundle.registrations
     .filter((item) => ["attending", "payment_pending", "standby"].includes(item.status))
@@ -5655,7 +5655,7 @@ function AdminRegistration({ bundle, players, mutate, user, weights }) {
                 <>
                   <button
                     className="primary"
-                    onClick={() => mutate(`/api/admin/registrations/${registration.id}`, { body: { cancellation_review: "אושר זיכוי", credited: true }, success: "הביטול אושר — נוסף זיכוי לשחקן" })}
+                    onClick={() => mutate(`/api/admin/registrations/${registration.id}`, { body: { cancellation_review: "אושר זיכוי", credited: true }, success: "הביטול אושר ונוסף זיכוי לשחקן" })}
                   >
                     אשר זיכוי
                   </button>
@@ -5666,7 +5666,7 @@ function AdminRegistration({ bundle, players, mutate, user, weights }) {
                 onClick={() => mutate(`/api/admin/registrations/${registration.id}/standby`, {
                   method: "POST",
                   confirm: `להחזיר את ${registration.player_name} לרשימת ההמתנה?`,
-                  confirmText: "השחקן יופיע שוב ברשימת ההמתנה, בסוף התור — הוא לא נכנס אוטומטית למחזור.",
+                  confirmText: "השחקן יופיע שוב ברשימת ההמתנה, בסוף התור. הוא לא נכנס אוטומטית למחזור.",
                   confirmLabel: "החזר לסטנדביי",
                   success: "השחקן הוחזר לסטנדביי"
                 })}
@@ -5697,8 +5697,8 @@ function AdminRegistration({ bundle, players, mutate, user, weights }) {
       method: "POST",
       body: { approvedRegistrationId: approvedRegistration.id, standbyRegistrationId: standbyRegistration.id, outgoingOutcome },
       success: outgoingOutcome === "removed"
-        ? `${standbyRegistration.player_name} נכנס במקום ${approvedRegistration.player_name} — ${approvedRegistration.player_name} יצא מהרשימה`
-        : `${standbyRegistration.player_name} נכנס במקום ${approvedRegistration.player_name} — ${approvedRegistration.player_name} עבר להמתנה`
+        ? `${standbyRegistration.player_name} נכנס במקום ${approvedRegistration.player_name}. ${approvedRegistration.player_name} יצא מהרשימה`
+        : `${standbyRegistration.player_name} נכנס במקום ${approvedRegistration.player_name}. ${approvedRegistration.player_name} עבר להמתנה`
     });
   }
 
@@ -5710,7 +5710,7 @@ function AdminRegistration({ bundle, players, mutate, user, weights }) {
             <p className="eyebrow">מצב הרשמה למחזור</p>
             <h2>{registrationModeLabel(bundle.match)}</h2>
             <InfoNote>
-              הסדר נקבע לפי זמן הרשמה בלבד — למנוי אין קדימות. חד פעמיים שלא שילמו עדיין שומרים על מקומם בתור.
+              הסדר נקבע לפי זמן הרשמה בלבד. למנוי אין קדימות. חד פעמיים שלא שילמו עדיין שומרים על מקומם בתור.
             </InfoNote>
           </div>
           {/* Two switches, not three stages: either audience can be opened or
@@ -5851,7 +5851,7 @@ function AdminRegistration({ bundle, players, mutate, user, weights }) {
       {replaceChoice && (
         <div className="pick-bar replace-choice-bar" role="status">
           <span>
-            <strong>{replaceChoice.standbyRegistration.player_name}</strong> ייכנס במקום <strong>{replaceChoice.approvedRegistration.player_name}</strong> —
+            <strong>{replaceChoice.standbyRegistration.player_name}</strong> ייכנס במקום <strong>{replaceChoice.approvedRegistration.player_name}</strong>.
             מה קורה עם {replaceChoice.approvedRegistration.player_name}?
           </span>
           <div className="pick-bar-actions">
@@ -6100,7 +6100,7 @@ function RemoveOrBenchMenu({ registration, mutate, removeReason }) {
               mutate(`/api/admin/registrations/${registration.id}/standby`, {
                 method: "POST",
                 confirm: `להעביר את ${registration.player_name} לסטנדביי?`,
-                confirmText: "ההרשמה נשארת פעילה — השחקן עובר לסוף רשימת ההמתנה, והבא בתור נכנס במקומו. אם השחקן כבר שובץ לקבוצה הוא יוסר ממנה.",
+                confirmText: "ההרשמה נשארת פעילה. השחקן עובר לסוף רשימת ההמתנה, והבא בתור נכנס במקומו. אם השחקן כבר שובץ לקבוצה הוא יוסר ממנה.",
                 confirmLabel: "העבר לסטנדביי",
                 success: "השחקן הועבר לסטנדביי"
               });
@@ -6194,7 +6194,7 @@ function AdminTeams({ bundle, players, mutate, weights }) {
   // Attack/defense/fitness numbers on every single chip and team card added up
   // to a wall of digits — one switch reveals them everywhere at once instead.
   const [showBreakdown, setShowBreakdown] = useState(false);
-  if (!bundle) return <p className="muted">אין מחזור פעיל — יש ליצור מחזור חדש בלשונית "מחזורים"</p>;
+  if (!bundle) return <p className="muted">אין מחזור פעיל. יש ליצור מחזור חדש בלשונית "מחזורים"</p>;
   const eligibleIds = new Set(
     bundle.registrations
       .filter((item) => item.status === "attending")
@@ -7247,7 +7247,7 @@ function ResultsEntryView({ pitchId, pitchLabel, player, setToast, matchStatus }
       await load();
       return payload;
     } catch {
-      showToast(setToast, "השרת לא זמין — הפעולה לא בוצעה", "error");
+      showToast(setToast, "השרת לא זמין, הפעולה לא בוצעה", "error");
       return null;
     }
   }
@@ -7290,7 +7290,7 @@ function ResultsEntryView({ pitchId, pitchLabel, player, setToast, matchStatus }
         <button className="primary add-game-button" onClick={() => setAddingGame(true)}><Plus size={16} /> משחק חדש</button>
       ))}
       {games.length === 0 && !addingGame && (
-        <p className="muted">{readOnly ? "לא תועדו משחקים במגרש הזה." : "עדיין אין משחקים במגרש הזה — הוסיפו משחק."}</p>
+        <p className="muted">{readOnly ? "לא תועדו משחקים במגרש הזה." : "עדיין אין משחקים במגרש הזה. הוסיפו משחק."}</p>
       )}
       {[...games].reverse().map((game, index) => (
         <LiveGameRow
@@ -7490,7 +7490,7 @@ function AddGoalForm({ pitchId, game, teamA, teamB, mutate }) {
 
 function AdminResults({ bundle, players, mutate }) {
   const [pitchId, setPitchId] = useState(bundle?.pitches[0]?.id || "");
-  if (!bundle) return <p className="muted">אין מחזור פעיל — יש ליצור מחזור חדש בלשונית "מחזורים"</p>;
+  if (!bundle) return <p className="muted">אין מחזור פעיל. יש ליצור מחזור חדש בלשונית "מחזורים"</p>;
   const pitch = bundle.pitches.find((item) => item.id === pitchId) || bundle.pitches[0];
   // bundle.goals already spans every pitch in the match (admin callers get
   // it unfiltered by pitch), so this is a match-wide tally, not per-pitch.
