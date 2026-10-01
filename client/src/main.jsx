@@ -1026,7 +1026,7 @@ function PlayerHome({ player, bundle, subscription, reload, setToast, askConfirm
       <ActionItemsPanel items={actionItems} />
       <article className="hero-panel glass">
         <div className="hero-copy">
-          <p className="eyebrow"><CalendarDays size={13} /> המשחק הקרוב</p>
+          <p className="eyebrow"><CalendarDays size={13} /> {isRoundOver(bundle?.match?.status) ? "המשחק האחרון" : "המשחק הקרוב"}</p>
           {/* The date/time is the one fact a player actually needs at a glance —
               the fixture's internal title and the registration/waitlist counts
               are admin bookkeeping, not something to lead with here. */}
@@ -1056,7 +1056,10 @@ function PlayerHome({ player, bundle, subscription, reload, setToast, askConfirm
             </div>
           )}
           {!canRegister && (
-            <div className="notice"><Bell size={18} />{registrationClosedText(bundle?.match, player)}</div>
+            <div className="notice">
+              {isRoundOver(bundle?.match?.status) ? <Flag size={18} /> : <Bell size={18} />}
+              {registrationClosedText(bundle?.match, player)}
+            </div>
           )}
           {/* Cancelling applies to any live registration, not just a confirmed one. */}
           {canRegister && isSignedUp && (
@@ -1071,7 +1074,7 @@ function PlayerHome({ player, bundle, subscription, reload, setToast, askConfirm
       <article className={`glass ${assignment ? "personal-card" : "round-card"}`}>
         {assignment ? (
           <>
-            <p className="eyebrow">היום אני משחק</p>
+            <p className="eyebrow">{isRoundOver(bundle?.match?.status) ? "שיחקת במחזור הזה" : "היום אני משחק"}</p>
             <AvatarJersey player={player} color={assignment.team.color_hex} large />
             {/* Pitch and team colour read as one fact — where you play and in
                 which shirt — so they share a line, separated by a swatch. */}
@@ -2005,9 +2008,10 @@ function MatchView({ bundle, player, settings }) {
           key={pitch.id}
           pitch={pitch}
           isMine={pitch.id === myPitchId}
-          // Fold the other pitches only when the viewer has one of their own
+          // Fold every pitch once the game is over (the lineups are history),
+          // and otherwise fold the other pitches when the viewer has one of their own
           // to look at first; someone not playing sees every lineup open.
-          collapsed={Boolean(myPitchId) && pitch.id !== myPitchId}
+          collapsed={isRoundOver(bundle.match.status) || (Boolean(myPitchId) && pitch.id !== myPitchId)}
           myPlayerId={player?.id}
           onSelectPlayer={statsEnabled ? setStatsPlayer : undefined}
         />
@@ -7118,13 +7122,13 @@ function ResultsUnavailableNotice({ squadPublished, status }) {
 
 // Shown on the lineups and results pages once the game is over, so nobody
 // has to infer it from a small status pill.
-function FixtureOverNotice({ status, canStillRecord = false }) {
-  if (status !== "finished" && status !== "stats_published") return null;
+function FixtureOverNotice({ status, correctionsHint = false }) {
+  if (!isRoundOver(status)) return null;
   const text = status === "stats_published"
     ? "התוצאות, הטבלה והמצטיינים פורסמו בלשונית סטטיסטיקות."
-    : canStillRecord
-      ? "אפשר עדיין להוסיף ולתקן תוצאות עד הפרסום."
-      : "תיעוד התוצאות נסגר. התוצאות והטבלה יופיעו בסטטיסטיקות לאחר הפרסום.";
+    : "תיעוד התוצאות נסגר. התוצאות והטבלה יופיעו בסטטיסטיקות לאחר הפרסום."
+      // Admins fix results from the admin results tab, not this page.
+      + (correctionsHint ? " תיקונים: מצב ניהול ← ניהול מחזור ← תוצאות." : "");
   return (
     <article className="fixture-over" role="status">
       <span className="fixture-over-icon" aria-hidden="true"><Flag size={20} /></span>
@@ -7137,9 +7141,9 @@ function FixtureOverNotice({ status, canStillRecord = false }) {
 }
 
 function ResultsEntryView({ pitchId, pitchLabel, player, setToast, matchStatus, canEditAfterGame = false }) {
-  // Players can still see their pitch's games once the game is over, but
-  // the server stops accepting changes from them (admins keep editing).
-  const readOnly = matchStatus === "finished" && !canEditAfterGame;
+  // Once the game is over this page only shows what was recorded — for
+  // everyone; corrections go through the admin results tab instead.
+  const readOnly = isRoundOver(matchStatus);
   const [state, setState] = useState({ loading: true, error: null, data: null });
   const [addingGame, setAddingGame] = useState(false);
 
@@ -7209,7 +7213,7 @@ function ResultsEntryView({ pitchId, pitchLabel, player, setToast, matchStatus, 
           <h2>{pitchLabel}</h2>
         </div>
       </article>
-      <FixtureOverNotice status={matchStatus} canStillRecord={!readOnly} />
+      <FixtureOverNotice status={matchStatus} correctionsHint={canEditAfterGame} />
       {!readOnly && <MatchTimer />}
       {!readOnly && (addingGame ? (
         <NewGameForm pitchId={pitchId} teams={teams} mutate={mutate} onDone={() => setAddingGame(false)} />
@@ -7910,8 +7914,14 @@ function statsVisible(status) {
 
 // Each audience has its own switch, so a fixture open only to one-timers is a
 // legal state — registration no longer depends on where the match is in its flow.
+// The game has been played: no more signing up or cancelling, whatever the
+// registration switches say (the server refuses both too).
+function isRoundOver(status) {
+  return status === "finished" || status === "stats_published";
+}
+
 function canPlayerRegister(match, player) {
-  if (!match) return false;
+  if (!match || isRoundOver(match.status)) return false;
   return player?.is_monthly_member
     ? Boolean(match.members_can_register)
     : Boolean(match.one_timers_can_register);
@@ -7925,6 +7935,8 @@ function signedUpText(status) {
 }
 
 function registrationClosedText(match, player) {
+  if (match?.status === "stats_published") return "המשחק הסתיים · התוצאות פורסמו בלשונית סטטיסטיקות";
+  if (match?.status === "finished") return "המשחק הסתיים · התוצאות יפורסמו בקרוב";
   if (match?.members_can_register && !player?.is_monthly_member) return "ההרשמה פתוחה כרגע למנויים בלבד";
   if (match?.one_timers_can_register && player?.is_monthly_member) return "ההרשמה פתוחה כרגע לשחקנים חד־פעמיים בלבד";
   return "ההרשמה למחזור הזה סגורה כרגע";

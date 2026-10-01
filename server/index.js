@@ -2772,7 +2772,7 @@ app.post("/api/matches/:matchId/register", asyncRoute(async (req, res) => {
   const status = attending ? "standby" : "not_attending";
   // The match and the player must belong to the SAME organization.
   const { rows: guardRows } = await query(
-    `SELECT m.members_can_register, m.one_timers_can_register, m.org_id, p.is_monthly_member, p.credits
+    `SELECT m.members_can_register, m.one_timers_can_register, m.org_id, m.status AS match_status, p.is_monthly_member, p.credits
      FROM matches m
      JOIN players p ON p.org_id = m.org_id
      WHERE m.id = $1 AND p.id = $2`,
@@ -2781,6 +2781,9 @@ app.post("/api/matches/:matchId/register", asyncRoute(async (req, res) => {
   const guard = guardRows[0];
   if (!guard) return res.status(404).json({ error: "מחזור או שחקן לא נמצאו" });
   const orgId = guard.org_id;
+  if (["finished", "stats_published"].includes(guard.match_status)) {
+    return res.status(400).json({ error: "המשחק כבר הסתיים" });
+  }
   // Each audience is gated by its own flag, so "one-timers only" is expressible.
   if (attending) {
     const gate = guard.is_monthly_member ? guard.members_can_register : guard.one_timers_can_register;
@@ -2831,11 +2834,14 @@ app.post("/api/matches/:matchId/cancel", asyncRoute(async (req, res) => {
   const playerId = user.id;
   const { reason } = req.body;
   const { rows: owner } = await query(
-    `SELECT org_id FROM registrations WHERE match_id = $1 AND player_id = $2`,
+    `SELECT r.org_id, m.status AS match_status FROM registrations r JOIN matches m ON m.id = r.match_id WHERE r.match_id = $1 AND r.player_id = $2`,
     [matchId, playerId]
   );
   if (!owner[0]) return res.status(404).json({ error: "הרשמה לא נמצאה" });
   const orgId = owner[0].org_id;
+  if (["finished", "stats_published"].includes(owner[0].match_status)) {
+    return res.status(400).json({ error: "המשחק כבר הסתיים, ואי אפשר לבטל השתתפות" });
+  }
   await query(
     `UPDATE registrations
      SET status = 'cancelled', cancellation_reason = $3
@@ -2972,11 +2978,11 @@ async function pitchForResultEntry(pitchId, user) {
   return memberRows[0] ? pitch : null;
 }
 
-// Once a match is marked finished, players can still read their pitch's
-// games but no longer add or remove any; admins and stats admins keep full
-// access until the stats are published (see MATCH_STATES in the client).
-function resultsLockedFor(pitch, user) {
-  return pitch.match_status === "finished" && !requireRole(user, ["admin", "stats_admin"]);
+// Once a match is marked finished, its pitch's games can still be read here
+// but no longer changed — by anyone. Corrections go through the admin
+// results routes (/api/admin/games/...), which this doesn't touch.
+function resultsLockedFor(pitch) {
+  return pitch.match_status === "finished";
 }
 
 // The scoreline is never typed in — it's always exactly the goal_events
@@ -3043,7 +3049,7 @@ app.post("/api/pitches/:pitchId/games", asyncRoute(async (req, res) => {
   if (!user) return res.status(401).json({ error: "נדרשת התחברות" });
   const pitch = await pitchForResultEntry(pitchId, user);
   if (!pitch) return res.status(403).json({ error: "אין הרשאה לתעד תוצאות למגרש הזה" });
-  if (resultsLockedFor(pitch, user)) return res.status(403).json({ error: "המשחק הסתיים, ותיעוד התוצאות נסגר" });
+  if (resultsLockedFor(pitch)) return res.status(403).json({ error: "המשחק הסתיים, ותיעוד התוצאות נסגר" });
   if (!teamAId || !teamBId || teamAId === teamBId) {
     return res.status(400).json({ error: "יש לבחור שתי קבוצות שונות" });
   }
@@ -3076,7 +3082,7 @@ app.delete("/api/pitches/:pitchId/games/:gameId", asyncRoute(async (req, res) =>
   if (!user) return res.status(401).json({ error: "נדרשת התחברות" });
   const pitch = await pitchForResultEntry(pitchId, user);
   if (!pitch) return res.status(403).json({ error: "אין הרשאה לתעד תוצאות למגרש הזה" });
-  if (resultsLockedFor(pitch, user)) return res.status(403).json({ error: "המשחק הסתיים, ותיעוד התוצאות נסגר" });
+  if (resultsLockedFor(pitch)) return res.status(403).json({ error: "המשחק הסתיים, ותיעוד התוצאות נסגר" });
   await query("DELETE FROM game_results WHERE id = $1 AND pitch_id = $2", [gameId, pitchId]);
   res.json({ ok: true });
 }));
@@ -3088,7 +3094,7 @@ app.post("/api/pitches/:pitchId/games/:gameId/goals", asyncRoute(async (req, res
   if (!user) return res.status(401).json({ error: "נדרשת התחברות" });
   const pitch = await pitchForResultEntry(pitchId, user);
   if (!pitch) return res.status(403).json({ error: "אין הרשאה לתעד תוצאות למגרש הזה" });
-  if (resultsLockedFor(pitch, user)) return res.status(403).json({ error: "המשחק הסתיים, ותיעוד התוצאות נסגר" });
+  if (resultsLockedFor(pitch)) return res.status(403).json({ error: "המשחק הסתיים, ותיעוד התוצאות נסגר" });
   if (!scorerId) return res.status(400).json({ error: "יש לבחור כובש" });
   if (!ownGoal && assistId && assistId === scorerId) {
     return res.status(400).json({ error: "כובש לא יכול לבשל לעצמו" });
@@ -3125,7 +3131,7 @@ app.delete("/api/pitches/:pitchId/games/:gameId/goals/:goalId", asyncRoute(async
   if (!user) return res.status(401).json({ error: "נדרשת התחברות" });
   const pitch = await pitchForResultEntry(pitchId, user);
   if (!pitch) return res.status(403).json({ error: "אין הרשאה לתעד תוצאות למגרש הזה" });
-  if (resultsLockedFor(pitch, user)) return res.status(403).json({ error: "המשחק הסתיים, ותיעוד התוצאות נסגר" });
+  if (resultsLockedFor(pitch)) return res.status(403).json({ error: "המשחק הסתיים, ותיעוד התוצאות נסגר" });
   const updatedGame = await withClient(async (client) => {
     await client.query("DELETE FROM goal_events WHERE id = $1 AND game_id = $2", [goalId, gameId]);
     return recomputeGameScore(client, gameId);
