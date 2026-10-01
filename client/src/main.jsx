@@ -601,7 +601,7 @@ function App() {
 }
 
 function LoginScreen({ onLogin, theme, onToggleTheme, setToast }) {
-  const [form, setForm] = useState({ phone: "0501111111", password: "123456" });
+  const [form, setForm] = useState({ phone: "", password: "" });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   // Arriving via an invite link (?code=...) means the visitor is here to
@@ -725,7 +725,6 @@ function LoginScreen({ onLogin, theme, onToggleTheme, setToast }) {
               {busy ? "מתחבר…" : <>התחבר<ChevronLeft size={16} /></>}
             </button>
           </div>
-          <small className="login-demo-note">דמו: כל המשתמשים הקיימים עם סיסמה `123456`. אדמין: 0502222222, סטטיסטיקות: 0503333333.</small>
         </article>
       )}
       {orgChoices && (
