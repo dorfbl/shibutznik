@@ -10,9 +10,13 @@ services:
       PGPORT: 5432
       PGDATABASE: badat_football
       PGUSER: postgres
-      PGPASSWORD: "TripoDB2024!"
+      PGPASSWORD: "${PGPASSWORD}"
       API_PORT: 3015
+      SESSION_SECRET: ${SESSION_SECRET}
       WEB_ORIGIN: "http://shib.kefar-sava.co.il"
+      VAPID_PUBLIC_KEY: "${VAPID_PUBLIC_KEY}"
+      VAPID_PRIVATE_KEY: "${VAPID_PRIVATE_KEY}"
+      VAPID_SUBJECT: "mailto:admin@shib.kefar-sava.co.il"
     ports:
       - "3116:3015"
     volumes:
@@ -26,6 +30,7 @@ services:
       dockerfile: docker/client.Dockerfile
       args:
         VITE_API_URL: "https://shib.kefar-sava.co.il"
+        VITE_VAPID_PUBLIC_KEY: "${VAPID_PUBLIC_KEY}"
     container_name: badat-client
     restart: unless-stopped
     ports:
