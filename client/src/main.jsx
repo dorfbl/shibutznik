@@ -457,7 +457,11 @@ function App() {
     setAuthUser(next);
     setAdminData(null);
     setAdminMatchIdSynced(null);
-    setView("player");
+    // Switching while managing one club and admin of the next: keep managing
+    // (now the new club). Otherwise land on the new club's home page.
+    const target = data?.organizations?.find((org) => org.org_id === orgId);
+    const stayAdmin = view === "admin" && ["admin", "stats_admin"].includes(target?.role);
+    setView(stayAdmin ? "admin" : "player");
   }
 
   if (!authUser) {
@@ -491,6 +495,9 @@ function App() {
               role={currentUser?.role}
               isPlatformAdmin={currentUser?.is_platform_admin}
               view={view}
+              organizations={data?.organizations}
+              activeOrgId={currentUser?.org_id}
+              onSwitchOrg={switchOrg}
               onOpenProfile={() => setProfileOpen(true)}
               onNavigate={setView}
             />
@@ -598,7 +605,7 @@ function App() {
       {data?.organizations?.length > 1 && !authUser?.orgChosen && (
         <OrgPickerModal
           title="לאיזה ארגון להיכנס?"
-          organizations={data.organizations.map((org) => ({ id: org.org_id, name: org.org_name }))}
+          organizations={data.organizations.map((org) => ({ id: org.org_id, name: org.org_name, role: org.role }))}
           onChoose={switchOrg}
         />
       )}
@@ -767,10 +774,13 @@ function OrgPickerModal({ title, organizations, onChoose }) {
         <div className="org-picker-list">
           {organizations.map((org) => (
             <button key={org.id} className="org-picker-option" onClick={() => onChoose(org.id)}>
-              {org.name}
+              <Building2 size={18} aria-hidden="true" />
+              <span className="org-picker-name">{org.name}</span>
+              {org.role && <span className={`org-role-chip ${org.role}`}>{orgRoleLabel(org.role)}</span>}
             </button>
           ))}
         </div>
+        <p className="muted">אפשר לעבור ארגון בכל רגע מתפריט הפרופיל.</p>
       </article>
     </div>
   );
@@ -821,7 +831,12 @@ function Segmented({ value, onChange }) {
 // Behind the topbar avatar: your profile, plus admin mode / organization
 // management for whoever has those roles. A platform admin gets the
 // organizations entry regardless of their role in the current org.
-function ProfileMenu({ player, role, isPlatformAdmin, view, onOpenProfile, onNavigate }) {
+// The player's role in one organization, as shown next to its name.
+function orgRoleLabel(role) {
+  return role === "admin" ? "אדמין" : role === "stats_admin" ? "סטטיסטיקות" : "שחקן";
+}
+
+function ProfileMenu({ player, role, isPlatformAdmin, view, organizations, activeOrgId, onSwitchOrg, onOpenProfile, onNavigate }) {
   const [open, setOpen] = useState(false);
   const rootRef = React.useRef(null);
   useEffect(() => {
@@ -863,6 +878,34 @@ function ProfileMenu({ player, role, isPlatformAdmin, view, onOpenProfile, onNav
       </button>
       {open && (
         <div className="profile-menu-list" role="menu">
+          {/* Several clubs: switch right here, the current one ticked.
+              Admin mode below always refers to the ticked club. */}
+          {organizations?.length > 1 && (
+            <>
+              <p className="profile-menu-label">ארגון</p>
+              {organizations.map((org) => {
+                const isActive = org.org_id === activeOrgId;
+                return (
+                  <button
+                    key={org.org_id}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={isActive}
+                    className={`profile-menu-org ${isActive ? "current" : ""}`}
+                    onClick={() => { setOpen(false); if (!isActive) onSwitchOrg(org.org_id); }}
+                  >
+                    <Building2 size={18} aria-hidden="true" />
+                    <span className="profile-menu-org-text">
+                      <span>{org.org_name}</span>
+                      <small>{orgRoleLabel(org.role)}</small>
+                    </span>
+                    {isActive && <Check size={16} className="profile-menu-check" aria-hidden="true" />}
+                  </button>
+                );
+              })}
+              <hr className="profile-menu-sep" />
+            </>
+          )}
           {items.map(([id, label, Icon, action]) => (
             <button
               key={id}
@@ -5052,6 +5095,22 @@ function PlayerActionMenu({ player, bundle, mutate, onView }) {
         ? "רק שחקנים פעילים ניתנים לשיבוץ"
         : undefined;
 
+  const isSelf = player.id === readStoredUser()?.id;
+
+  // Permanent. The server also refuses players another club shares, the
+  // caller's own account, and stats admins — this just asks clearly first.
+  function deletePlayer() {
+    setOpen(false);
+    mutate(`/api/admin/players/${player.id}`, {
+      method: "DELETE",
+      confirm: `למחוק את ${player.full_name} לצמיתות?`,
+      confirmText: "השחקן יימחק מהמערכת יחד עם ההרשמות, השיבוצים בקבוצות, ההערות, המנויים והשערים שלו. תוצאות המשחקים והטבלאות לא ישתנו. אי אפשר לבטל את הפעולה.",
+      confirmTone: "danger",
+      confirmLabel: "מחיקה לצמיתות",
+      success: "השחקן נמחק"
+    });
+  }
+
   function addToFixture() {
     setOpen(false);
     mutate(`/api/admin/matches/${bundle.match.id}/registrations`, {
@@ -5088,6 +5147,17 @@ function PlayerActionMenu({ player, bundle, mutate, onView }) {
           </button>
           <button type="button" role="menuitem" disabled={!canAddToFixture} title={addDisabledReason} onClick={addToFixture}>
             <UserPlus size={15} /> הוספה למחזור הנוכחי
+          </button>
+          <hr className="player-menu-sep" />
+          <button
+            type="button"
+            role="menuitem"
+            className="danger"
+            disabled={isSelf}
+            title={isSelf ? "אי אפשר למחוק את החשבון שלך" : undefined}
+            onClick={deletePlayer}
+          >
+            <Trash2 size={15} /> מחיקת שחקן לצמיתות
           </button>
         </div>,
         document.body
@@ -7704,7 +7774,11 @@ function AuditLog({ rows }) {
               <div className="admin-list-row audit-row" key={row.id}>
                 <span className="audit-row-icon" aria-hidden="true"><History size={14} /></span>
                 <div>
-                  <strong>{row.action}</strong>
+                  <strong>
+                    {row.action === "admin_delete_player"
+                      ? `שחקן נמחק · ${row.before_value?.full_name || ""}`
+                      : row.action}
+                  </strong>
                   <small>{row.entity_type} · {row.actor_name || "מערכת"} · {new Date(row.created_at).toLocaleString("he-IL")}</small>
                 </div>
               </div>

@@ -4834,3 +4834,54 @@ button.pitch-field-title:disabled { opacity: 1; }
   .subscriber-row .row-actions { gap: 6px; }
   .subscriber-row .row-actions button { min-height: 34px; padding: 5px 10px; font-size: .8rem; }
 }
+
+/* ==========================================================================
+   Organizations: avatar-menu switcher + post-login picker
+   ========================================================================== */
+.profile-menu-label {
+  margin: 4px 12px 2px;
+  font-size: .7rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  color: var(--ink-4);
+}
+.profile-menu-sep { border: 0; border-top: 1px solid var(--line); margin: 4px 6px; }
+.profile-menu-org-text { display: grid; line-height: 1.25; min-width: 0; }
+.profile-menu-org-text span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.profile-menu-org-text small { font-size: .72rem; font-weight: 500; color: var(--ink-3); }
+.profile-menu-list .profile-menu-org.current { background: var(--turf-dim); }
+.profile-menu-list .profile-menu-org.current svg { color: var(--turf); }
+.profile-menu-list { min-width: 230px; max-width: min(300px, calc(100vw - 32px)); }
+
+/* Post-login picker: one row per club, with your role there */
+.org-picker-list { gap: 8px; }
+.org-picker-list .org-picker-option {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  min-height: 52px;
+  padding: 10px 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  color: var(--ink);
+  font-weight: 700;
+  text-align: start;
+}
+.org-picker-list .org-picker-option:hover:not(:disabled) { border-color: var(--turf); background: var(--turf-dim); }
+.org-picker-option svg { color: var(--turf); flex: none; }
+.org-picker-name { flex: 1; min-width: 0; }
+.org-role-chip {
+  flex: none;
+  padding: 2px 10px;
+  border-radius: var(--r-pill);
+  font-size: .72rem;
+  font-weight: 700;
+  background: var(--surface-3);
+  color: var(--ink-3);
+}
+.org-role-chip.admin { background: var(--turf-dim); color: var(--turf); }
+
+/* Player action menu: a divider before the destructive action */
+.player-menu-sep { border: 0; border-top: 1px solid var(--line); margin: 4px 6px; }

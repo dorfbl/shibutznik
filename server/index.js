@@ -1677,6 +1677,44 @@ app.patch("/api/admin/players/:playerId", asyncRoute(async (req, res) => {
 
 // Append-only log an admin can add to freely — distinct from the single
 // admin_note column above, which doubles as the signup-time referral text.
+// Permanent removal. The database cascades the rest: registrations, team
+// spots, notes, answers, subscription signups, push devices and the goals
+// they scored (stored game scores and standings are unaffected; their assists
+// are kept without a name). Guarded so one club's admin can never remove a
+// player another club also has, nor themselves; stats admins can't delete.
+app.delete("/api/admin/players/:playerId", asyncRoute(async (req, res) => {
+  const { playerId } = req.params;
+  const orgId = req.user.org_id;
+  if (req.user.role !== "admin") return res.status(403).json({ error: "אין הרשאה למחוק שחקנים" });
+  if (playerId === req.user.id) return res.status(400).json({ error: "אי אפשר למחוק את החשבון שלך" });
+  const { rows } = await query(
+    "SELECT id, full_name, phone, avatar_url FROM players WHERE id = $1 AND org_id = $2",
+    [playerId, orgId]
+  );
+  const player = rows[0];
+  if (!player) return res.status(404).json({ error: "שחקן לא נמצא" });
+  const { rows: otherOrgs } = await query(
+    "SELECT 1 FROM player_organizations WHERE player_id = $1 AND org_id <> $2",
+    [playerId, orgId]
+  );
+  if (otherOrgs.length) {
+    return res.status(409).json({ error: "השחקן רשום גם בארגון אחר, ולכן אי אפשר למחוק אותו לצמיתות" });
+  }
+  // One transaction (withClient): the log entry and the delete land together.
+  await withClient(async (client) => {
+    await client.query(
+      `INSERT INTO audit_log (org_id, actor_id, action, entity_type, entity_id, before_value)
+       VALUES ($1, $2, 'admin_delete_player', 'player', $3, $4)`,
+      [orgId, req.user.id, playerId, JSON.stringify({ full_name: player.full_name, phone: player.phone })]
+    );
+    await client.query("DELETE FROM players WHERE id = $1 AND org_id = $2", [playerId, orgId]);
+  });
+  // Their uploaded photo, if it lives in our own uploads folder.
+  const fileName = String(player.avatar_url || "").match(/^\/api\/uploads\/([\w-]+\.(?:jpg|png|webp|gif))$/)?.[1];
+  if (fileName) fs.promises.unlink(path.join(UPLOAD_DIR, fileName)).catch(() => {});
+  res.json({ ok: true });
+}));
+
 app.get("/api/admin/players/:playerId/notes", asyncRoute(async (req, res) => {
   const { playerId } = req.params;
   const orgId = req.user.org_id;
