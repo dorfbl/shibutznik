@@ -576,7 +576,7 @@ function App() {
             subscription={data.subscription}
             reload={reload}
             setToast={setToast}
-            askConfirm={(options) => setConfirm(options)}
+            askConfirm={(options) => setConfirm({ ...options, dialogId: `${Date.now()}-${Math.random()}` })}
             settings={data.settings}
           />
         )}
@@ -604,7 +604,7 @@ function App() {
             selectedMatchId={adminMatchId}
             setSelectedMatchId={setAdminMatchIdSynced}
             setToast={setToast}
-            askConfirm={(options) => setConfirm(options)}
+            askConfirm={(options) => setConfirm({ ...options, dialogId: `${Date.now()}-${Math.random()}` })}
             forceControlTabSignal={adminTabResetSignal}
           />
         )}
@@ -613,7 +613,17 @@ function App() {
         )}
       </main>
       {toast && <Toast toast={toast} onClose={() => setToast(null)} />}
-      {confirm && <ConfirmDialog config={confirm} onClose={() => setConfirm(null)} />}
+      {/* Each dialog closes only itself: an action that opens a follow-up
+          dialog (e.g. "send a notification?") must not have that one closed
+          when the first dialog finishes. A new config also gets a fresh
+          dialog (key), never the previous one's leftover input state. */}
+      {confirm && (
+        <ConfirmDialog
+          key={confirm.dialogId}
+          config={confirm}
+          onClose={() => setConfirm((current) => (current === confirm ? null : current))}
+        />
+      )}
       {/* Shown once per fresh login for a multi-org account — switchOrg marks
           orgChosen so this never interrupts the same login again. */}
       {data?.organizations?.length > 1 && !authUser?.orgChosen && (
@@ -2766,6 +2776,25 @@ function AdminView({ data, reload, refreshAll, user, selectedMatchId, setSelecte
     if (!options.silent) showToast(setToast, options.success || "הפעולה נשמרה", "success");
     return payload;
   }
+  // Right after registration opens or lineups are published, offer to send
+  // the matching push notification (same wording as the notifications
+  // tab's templates). Only full admins can send, so only they are asked.
+  function offerNotification(templateId, audienceType, audienceLabel, audienceParams = {}) {
+    if (user?.role !== "admin") return;
+    const template = NOTIFICATION_TEMPLATES.find((item) => item.id === templateId);
+    if (!template) return;
+    askConfirm({
+      title: "לשלוח התראה לשחקנים?",
+      text: `${template.title} — ${template.body}\n\nנשלח אל: ${audienceLabel}`,
+      confirmLabel: "שליחת התראה",
+      cancelLabel: "לא עכשיו",
+      onConfirm: () => mutate("/api/admin/notifications/send", {
+        method: "POST",
+        body: { audienceType, audienceParams, title: template.title, body: template.body, audienceLabel },
+        success: "ההתראה נשלחה"
+      })
+    });
+  }
   const hasAlerts = Boolean(
     data.pendingJoinRequests?.length ||
     data.pendingPayments?.length ||
@@ -2834,6 +2863,7 @@ function AdminView({ data, reload, refreshAll, user, selectedMatchId, setSelecte
           pendingPaymentsCount={data.pendingPayments?.length || 0}
           pendingJoinRequestsCount={data.pendingJoinRequests?.length || 0}
           onGoToTab={setTab}
+          offerNotification={offerNotification}
         />
       )}
       {tab === "settings" && (
@@ -3858,7 +3888,7 @@ function AdminControlKpis({ bundle, pendingPaymentsCount, pendingJoinRequestsCou
 // Compact: the fixture's state is glanced at, not browsed — a badge for the
 // current state and a menu to jump straight to any other one, instead of
 // spelling out every state in a row.
-function FixtureStatusCard({ match, mutate }) {
+function FixtureStatusCard({ match, mutate, offerNotification }) {
   const [open, setOpen] = useState(false);
   const current = MATCH_STATES.find(([status]) => status === match.status);
 
@@ -3873,7 +3903,7 @@ function FixtureStatusCard({ match, mutate }) {
           שינוי מצב <ChevronLeft size={14} />
         </button>
       </div>
-      {open && <FixtureStatusSheet match={match} mutate={mutate} onClose={() => setOpen(false)} />}
+      {open && <FixtureStatusSheet match={match} mutate={mutate} offerNotification={offerNotification} onClose={() => setOpen(false)} />}
     </article>
   );
 }
@@ -3891,7 +3921,7 @@ const MATCH_STATE_ICONS = {
 // A bottom sheet on mobile (full-width, slides up, thumb-sized rows) and a
 // centered card on desktop — replaces a cramped dropdown with something that
 // reads as a deliberate, modern "pick one" screen instead of a browser menu.
-function FixtureStatusSheet({ match, mutate, onClose }) {
+function FixtureStatusSheet({ match, mutate, offerNotification, onClose }) {
   useBackButtonClose(onClose);
 
   useEffect(() => {
@@ -3940,7 +3970,11 @@ function FixtureStatusSheet({ match, mutate, onClose }) {
                   confirm: confirmTitle,
                   confirmText,
                   confirmTone: tone,
-                  success: "מצב המחזור עודכן"
+                  success: "מצב המחזור עודכן",
+                  // Lineups just went public: offer to tell everyone registered.
+                  after: status === "teams_published"
+                    ? () => offerNotification?.("squad_published", "match", "הרשומים למחזור", { matchId: match.id })
+                    : undefined
                 });
               }}
             >
@@ -3960,7 +3994,7 @@ function FixtureStatusSheet({ match, mutate, onClose }) {
 }
 
 // Independent of the fixture state above: who can register, open whenever.
-function RegistrationStatusCard({ match, mutate }) {
+function RegistrationStatusCard({ match, mutate, offerNotification }) {
   return (
     <article className="glass registration-status-card">
       <div className="flow-head">
@@ -3982,7 +4016,13 @@ function RegistrationStatusCard({ match, mutate }) {
                 confirm: isOpen ? `לסגור את ההרשמה ל${label}?` : `לפתוח את ההרשמה ל${label}?`,
                 confirmText: isOpen ? closeText : openText,
                 confirmTone: isOpen ? "warning" : "default",
-                success: "מצב ההרשמה עודכן"
+                success: "מצב ההרשמה עודכן",
+                // Just opened (not closed): offer to tell that audience.
+                after: isOpen
+                  ? undefined
+                  : () => (field === "members_can_register"
+                    ? offerNotification?.("reg_members", "members", "כל המנויים")
+                    : offerNotification?.("reg_all", "one_timers", "כל השחקנים שאינם מנויים"))
               })}
             >
               <span className="flow-label">{label}</span>
@@ -4050,7 +4090,7 @@ function AdminNextStep({ bundle, onGoToTab }) {
   );
 }
 
-function AdminControl({ bundle, mutate, pendingPaymentsCount, pendingJoinRequestsCount, onGoToTab }) {
+function AdminControl({ bundle, mutate, pendingPaymentsCount, pendingJoinRequestsCount, onGoToTab, offerNotification }) {
   if (!bundle) {
     return <p className="muted">אין מחזור פעיל — יש ליצור מחזור חדש בלשונית "מחזורים"</p>;
   }
@@ -4067,8 +4107,8 @@ function AdminControl({ bundle, mutate, pendingPaymentsCount, pendingJoinRequest
         pendingPaymentsCount={pendingPaymentsCount}
         pendingJoinRequestsCount={pendingJoinRequestsCount}
       />
-      <FixtureStatusCard match={match} mutate={mutate} />
-      <RegistrationStatusCard match={match} mutate={mutate} />
+      <FixtureStatusCard match={match} mutate={mutate} offerNotification={offerNotification} />
+      <RegistrationStatusCard match={match} mutate={mutate} offerNotification={offerNotification} />
     </>
   );
 }

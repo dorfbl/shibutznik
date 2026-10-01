@@ -4929,3 +4929,7 @@ button.pitch-field-title:disabled { opacity: 1; }
 .notif-delete svg { width: 15px; height: 15px; }
 .notif-delete:hover:not(:disabled) { background: var(--bad-dim); color: var(--bad); border-color: transparent; }
 .notif-delete:focus-visible { outline: 2px solid var(--bad); outline-offset: 1px; }
+
+/* Dialog text keeps its own line breaks (e.g. the notification preview
+   above "נשלח אל: …" in the send-notification prompt). */
+#confirm-text { white-space: pre-line; }
