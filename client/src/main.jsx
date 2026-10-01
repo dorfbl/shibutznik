@@ -582,7 +582,6 @@ function App() {
               player={selectedPlayer}
               setToast={setToast}
               matchStatus={data.activeMatch?.match?.status}
-              canEditAfterGame={["admin", "stats_admin"].includes(currentUser?.role)}
             />
           ) : (
             <ResultsUnavailableNotice squadPublished={squadPublished} status={data.activeMatch?.match?.status} />
@@ -7122,13 +7121,11 @@ function ResultsUnavailableNotice({ squadPublished, status }) {
 
 // Shown on the lineups and results pages once the game is over, so nobody
 // has to infer it from a small status pill.
-function FixtureOverNotice({ status, correctionsHint = false }) {
+function FixtureOverNotice({ status }) {
   if (!isRoundOver(status)) return null;
   const text = status === "stats_published"
     ? "התוצאות, הטבלה והמצטיינים פורסמו בלשונית סטטיסטיקות."
-    : "תיעוד התוצאות נסגר. התוצאות והטבלה יופיעו בסטטיסטיקות לאחר הפרסום."
-      // Admins fix results from the admin results tab, not this page.
-      + (correctionsHint ? " תיקונים: מצב ניהול ← ניהול מחזור ← תוצאות." : "");
+    : "תיעוד התוצאות נסגר. התוצאות והטבלה יופיעו בסטטיסטיקות לאחר הפרסום.";
   return (
     <article className="fixture-over" role="status">
       <span className="fixture-over-icon" aria-hidden="true"><Flag size={20} /></span>
@@ -7140,7 +7137,7 @@ function FixtureOverNotice({ status, correctionsHint = false }) {
   );
 }
 
-function ResultsEntryView({ pitchId, pitchLabel, player, setToast, matchStatus, canEditAfterGame = false }) {
+function ResultsEntryView({ pitchId, pitchLabel, player, setToast, matchStatus }) {
   // Once the game is over this page only shows what was recorded — for
   // everyone; corrections go through the admin results tab instead.
   const readOnly = isRoundOver(matchStatus);
@@ -7213,7 +7210,7 @@ function ResultsEntryView({ pitchId, pitchLabel, player, setToast, matchStatus, 
           <h2>{pitchLabel}</h2>
         </div>
       </article>
-      <FixtureOverNotice status={matchStatus} correctionsHint={canEditAfterGame} />
+      <FixtureOverNotice status={matchStatus} />
       {!readOnly && <MatchTimer />}
       {!readOnly && (addingGame ? (
         <NewGameForm pitchId={pitchId} teams={teams} mutate={mutate} onDone={() => setAddingGame(false)} />
