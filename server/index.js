@@ -9,6 +9,7 @@ import multer from "multer";
 import webpush from "web-push";
 import { parsePhoneNumberFromString } from "libphonenumber-js/max";
 import { query, withClient } from "./db.js";
+import { hashPassword, verifyPassword } from "./passwords.js";
 
 dotenv.config();
 
@@ -86,10 +87,6 @@ const FIXED_TEAM_COLORS = [
 
 function asyncRoute(handler) {
   return (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
-}
-
-function hashPassword(phone, password) {
-  return crypto.createHash("sha256").update(`${phone}:${password}`).digest("hex");
 }
 
 // Israeli mobile numbers only, validated against the real numbering plan
@@ -565,7 +562,18 @@ app.post("/api/login", asyncRoute(async (req, res) => {
      ORDER BY o.name`,
     [phoneLookupCandidates(phone)]
   );
-  const candidates = rows.filter((row) => row.status === "active" && row.password_hash === hashPassword(row.phone, password || ""));
+  // bcrypt (see passwords.js); rows still on an older format are upgraded to
+  // bcrypt(password) right here, the one moment the password is known.
+  const candidates = [];
+  for (const row of rows) {
+    if (row.status !== "active") continue;
+    const { ok, needsUpgrade } = await verifyPassword(row.phone, password || "", row.password_hash);
+    if (!ok) continue;
+    if (needsUpgrade) {
+      await query("UPDATE players SET password_hash = $1 WHERE id = $2", [await hashPassword(password), row.id]);
+    }
+    candidates.push(row);
+  }
 
   // An explicit organization was chosen: the account must exist in THAT org.
   // Never silently fall back to a different one.
@@ -778,7 +786,7 @@ app.post("/api/platform/organizations/:orgId/admins", asyncRoute(async (req, res
       `INSERT INTO players (org_id, full_name, phone, password_hash, status, role, avatar_url)
        VALUES ($1, $2, $3, $4, 'active', 'admin', $5)
        RETURNING id, full_name`,
-      [orgId, String(fullName).trim(), phone, hashPassword(phone, "123456"), `https://i.pravatar.cc/120?u=${encodeURIComponent(phone)}`]
+      [orgId, String(fullName).trim(), phone, await hashPassword("123456"), `https://i.pravatar.cc/120?u=${encodeURIComponent(phone)}`]
     );
     playerId = created[0].id;
     playerName = created[0].full_name;
@@ -1548,7 +1556,7 @@ app.post("/api/players", asyncRoute(async (req, res) => {
     `INSERT INTO players (org_id, full_name, phone, password_hash, avatar_url, status, tags, admin_note)
      VALUES ($1, $2, $3, $4, $5, 'pending', ARRAY['חדש'], $6)
      RETURNING ${playerFields}`,
-    [orgId, fullName, normalizedPhone, hashPassword(normalizedPhone, password || "123456"), avatarUrl || `https://i.pravatar.cc/120?u=${encodeURIComponent(normalizedPhone)}`, referral ? `דרך ${referral}` : null]
+    [orgId, fullName, normalizedPhone, await hashPassword(password || "123456"), avatarUrl || `https://i.pravatar.cc/120?u=${encodeURIComponent(normalizedPhone)}`, referral ? `דרך ${referral}` : null]
   );
   const playerId = rows[0].id;
   // Pending membership in that org; an admin approves it.
