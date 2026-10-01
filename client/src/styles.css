@@ -4718,3 +4718,41 @@ button.pitch-field-title:disabled { opacity: 1; }
   box-shadow: none;
 }
 .admin-mode-exit:hover:not(:disabled) { background: rgba(255,255,255,.18); }
+
+/* Home ticket: the day of the month is the hero number (was the time). */
+.ticket-day {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(4.6rem, 3.6rem + 3.4vw, 6.2rem);
+  line-height: .78;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.ticket-date .meta-row { gap: 4px 14px; }
+
+/* Monthly subscription: even vertical rhythm, so "המנוי שולם" no longer
+   sits flush against the tiles above it. */
+.subscription-card { display: grid; gap: var(--space-4); align-content: start; }
+.subscription-card > * { margin: 0; }
+.subscription-card .subscription-dates { margin: 0; gap: 10px; }
+/* Just the day numbers, large, in the scoreboard face */
+.subscription-day {
+  min-width: 58px;
+  padding: 8px 10px 6px;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  border: 1px solid var(--line-soft);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 2.4rem;
+  line-height: .9;
+  text-align: center;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The fixture card sits in half of the home grid, so its own two-column
+   split (copy | status card) left both columns too narrow — stack them. */
+@media (min-width: 860px) {
+  .hero-panel { grid-template-columns: minmax(0, 1fr); }
+}

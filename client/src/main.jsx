@@ -400,7 +400,7 @@ function App() {
     const response = await fetch(`${API}/api/admin${suffix}`, { headers: authHeaders(currentUser) });
     const payload = await response.json();
     if (!response.ok) {
-      showToast(setToast, payload.error || "אין הרשאת אדמין", "error");
+      showToast(setToast, payload.error || "אין הרשאה לצפות בעמוד הזה", "error");
       return;
     }
     if (!adminMatchIdRef.current && payload.activeMatch?.match?.id) setAdminMatchIdSynced(payload.activeMatch.match.id);
@@ -909,7 +909,7 @@ function PlayerHome({ player, bundle, subscription, reload, setToast, askConfirm
       body: JSON.stringify({ playerId: player.id, reason: reason || "ביטול דרך הדשבורד" })
     });
     await reload();
-    showToast(setToast, "הביטול נשלח לאדמין לטיפול", "success");
+    showToast(setToast, "הביטול נשלח לטיפול", "success");
   }
 
   function confirmCancel() {
@@ -918,7 +918,7 @@ function PlayerHome({ player, bundle, subscription, reload, setToast, askConfirm
       tone: "danger",
       confirmLabel: "ביטול השתתפות",
       cancelLabel: "הישאר רשום",
-      input: { placeholder: "סיבת ביטול לאדמין" },
+      input: { placeholder: "סיבת הביטול" },
       onConfirm: (reason) => cancel(reason)
     });
   }
@@ -974,11 +974,16 @@ function PlayerHome({ player, bundle, subscription, reload, setToast, askConfirm
           {/* The date/time is the one fact a player actually needs at a glance —
               the fixture's internal title and the registration/waitlist counts
               are admin bookkeeping, not something to lead with here. */}
+          {/* The day of the month is the headline: kick-off is the same time
+              every week, so it sits in the small print next to the weekday. */}
           <div className="ticket-when">
-            <span className="ticket-time">{bundle?.match.starts_at?.slice(0, 5)}</span>
+            <span className="ticket-day">{fixtureDay(bundle?.match.match_date)}</span>
             <div className="ticket-date">
-              <h2 className="upcoming-date">{formatDate(bundle?.match.match_date)}</h2>
-              {bundle?.match.location && <span className="meta-row"><span><MapPin size={16} /> {bundle.match.location}</span></span>}
+              <h2 className="upcoming-date">{fixtureWeekdayMonth(bundle?.match.match_date)}</h2>
+              <span className="meta-row">
+                <span><Clock size={16} /> {bundle?.match.starts_at?.slice(0, 5)}</span>
+                {bundle?.match.location && <span><MapPin size={16} /> {bundle.match.location}</span>}
+              </span>
             </div>
           </div>
           {bundle?.match.banner && <div className="notice"><Bell size={18} />{bundle.match.banner}</div>}
@@ -1377,7 +1382,7 @@ function JoinRequest({ reload, setToast, organization, questionnaireEnabled, que
     setAnswers({});
     setStep("basic");
     if (reload) await reload();
-    notify("הבקשה נשלחה. אדמין צריך לאשר לפני כניסה.", "success");
+    notify("הבקשה נשלחה. הכניסה תתאפשר לאחר אישור הבקשה.", "success");
   }
 
   return (
@@ -1408,7 +1413,7 @@ function JoinRequest({ reload, setToast, organization, questionnaireEnabled, que
           <input placeholder="דרך מי הגעת" value={form.referral} onChange={(event) => setForm({ ...form, referral: event.target.value })} />
           <AvatarUpload value={form.avatarUrl} onChange={(url) => setForm({ ...form, avatarUrl: url })} />
           <button className="primary" onClick={goNext} disabled={!basicValid || checkingPhone}>
-            {checkingPhone ? "בודק…" : hasQuestionnaire ? "המשך" : "שלח בקשה לאישור אדמין"}
+            {checkingPhone ? "בודק…" : hasQuestionnaire ? "המשך" : "שלח בקשה לאישור"}
           </button>
           {message && <div className="form-success">{message}</div>}
         </div>
@@ -1425,7 +1430,7 @@ function JoinRequest({ reload, setToast, organization, questionnaireEnabled, que
           ))}
           <div className="inline-form field-wide">
             <button onClick={() => setStep("basic")}>חזרה</button>
-            <button className="primary" onClick={submit} disabled={missingRequired}>שלח בקשה לאישור אדמין</button>
+            <button className="primary" onClick={submit} disabled={missingRequired}>שלח בקשה לאישור</button>
           </div>
           {message && <div className="form-success">{message}</div>}
         </div>
@@ -1542,7 +1547,7 @@ function StatusCard({ registration, player }) {
         )}
       </div>
       <strong className={`status-line ${reviewed ? "" : registration?.status || ""}`}>{label || "לא נרשמת עדיין"}</strong>
-      {reviewed && <small>הביטול נבדק על ידי האדמין. אפשר להירשם שוב למחזור הבא.</small>}
+      {reviewed && <small>הביטול נבדק. אפשר להירשם שוב למחזור הבא.</small>}
     </div>
   );
 }
@@ -1869,14 +1874,16 @@ function SubscriptionCard({ subscription, player, reload, setToast, askConfirm, 
   const mySignup = subscription.mySignup;
 
   return (
-    <article className={`glass${wide ? " wide" : ""}`}>
-      <p className="eyebrow">מנוי חודשי</p>
-      <h2>{monthLabel(subscription.year, subscription.month)}</h2>
-      {/* Just the dates that matter to a player — not the calendar grid the
-          admin toggles days on, which reads as an editor here it isn't. */}
+    <article className={`glass subscription-card${wide ? " wide" : ""}`}>
+      <div>
+        <p className="eyebrow">מנוי חודשי</p>
+        <h2>{monthLabel(subscription.year, subscription.month)}</h2>
+      </div>
+      {/* Just the days of the month — the month is already in the heading,
+          so "4 11 18 25" says it all. Not the admin's calendar grid. */}
       <div className="subscription-dates">
         {subscription.match_dates.map((iso) => (
-          <span className="pill" key={iso}>{isoToDisplay(iso)}</span>
+          <span className="subscription-day" key={iso} title={isoToDisplay(iso)}>{Number(iso.slice(8, 10))}</span>
         ))}
       </div>
       <div className="stat-grid">
@@ -2179,7 +2186,7 @@ function StatsView({ bundle }) {
         </article>
         <RoundCard
           status={bundle?.match?.status}
-          caption="התוצאות, הטבלה והמצטיינים יוצגו כאן אחרי שהאדמין יפרסם אותם."
+          caption="התוצאות, הטבלה והמצטיינים יוצגו כאן לאחר פרסומם."
         />
       </section>
     );
@@ -2613,7 +2620,7 @@ function AdminView({ data, reload, refreshAll, user, selectedMatchId, setSelecte
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [tab]);
-  if (!data) return <Splash text="טוען אדמין..." />;
+  if (!data) return <Splash text="טוען…" />;
   const bundle = data.activeMatch;
   const rankWeights = rankWeightsFromSettings(data.settings);
   async function mutate(path, options = {}) {
@@ -2813,7 +2820,7 @@ function PlatformAdminView({ user, setToast }) {
     if (!form.phone.trim()) return;
     const result = await mutate(`/api/platform/organizations/${orgId}/admins`, {
       body: { phone: form.phone.trim(), fullName: form.fullName.trim() || undefined },
-      success: "האדמין שובץ"
+      success: "השיוך נשמר"
     });
     if (result) setAdminForms((current) => ({ ...current, [orgId]: { phone: "", fullName: "" } }));
   }
@@ -3058,10 +3065,10 @@ const ROUND_STEPS = ["הרשמה", "שיבוץ", "הרכבים", "משחק", "ת
 const ROUND_STEP_FOR_STATUS = { draft: 0, teams_draft: 1, teams_published: 3, finished: 4, stats_published: 5 };
 
 const ROUND_CAPTIONS = {
-  draft: "שלב ההרשמה. אחרי שתיסגר, האדמין יבנה את הקבוצות.",
-  teams_draft: "האדמין בונה עכשיו את הקבוצות. כשההרכבים יתפרסמו יופיעו כאן המגרש, צבע הקבוצה והחברים שלך.",
+  draft: "שלב ההרשמה. אחרי שתיסגר, ייבנו הקבוצות.",
+  teams_draft: "הקבוצות נבנות עכשיו. כשההרכבים יתפרסמו יופיעו כאן המגרש, צבע הקבוצה והחברים שלך.",
   teams_published: "ההרכבים פורסמו. נתראה במגרש.",
-  finished: "המשחק הסתיים. התוצאות והטבלה יופיעו אחרי שהאדמין יפרסם אותן.",
+  finished: "המשחק הסתיים. התוצאות והטבלה יופיעו לאחר פרסומן.",
   stats_published: "התוצאות פורסמו ואפשר לראות אותן בלשונית סטטיסטיקות."
 };
 
@@ -5839,7 +5846,7 @@ function AdminRegistrationRow({ registration, number, isFullGroup, mutate, picke
           registration={registration}
           mutate={mutate}
           // A monthly member never owed payment, so "didn't pay" would be wrong.
-          removeReason={canConfirmPayment ? "לא שילם בזמן" : "הוסר על ידי האדמין"}
+          removeReason={canConfirmPayment ? "לא שילם בזמן" : "הוסר מהרשימה"}
         />
       </div>
     </div>
@@ -7827,6 +7834,21 @@ function aggregatePeople(rows, idKey, nameKey) {
 function formatDate(date) {
   if (!date) return "";
   return new Intl.DateTimeFormat("he-IL", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(date));
+}
+
+// Home-page fixture ticket: the day of the month on its own ("23"), and the
+// weekday + month name that go beside it ("יום רביעי · ספטמבר").
+function fixtureDay(date) {
+  if (!date) return "";
+  return new Intl.DateTimeFormat("he-IL", { day: "numeric" }).format(new Date(date));
+}
+
+function fixtureWeekdayMonth(date) {
+  if (!date) return "";
+  const d = new Date(date);
+  const weekday = new Intl.DateTimeFormat("he-IL", { weekday: "long" }).format(d);
+  const month = new Intl.DateTimeFormat("he-IL", { month: "long" }).format(d);
+  return `${weekday} · ${month}`;
 }
 
 // Date + time down to the second — for the one spot (the registration

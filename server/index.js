@@ -733,7 +733,7 @@ app.post("/api/platform/organizations/:orgId/admins", asyncRoute(async (req, res
     playerName = existing[0].full_name;
   } else {
     if (!fullName || !String(fullName).trim()) {
-      return res.status(400).json({ error: "שחקן עם הטלפון הזה לא נמצא — יש להזין שם מלא ליצירת אדמין חדש" });
+      return res.status(400).json({ error: "שחקן עם הטלפון הזה לא נמצא — יש להזין שם מלא ליצירת משתמש חדש" });
     }
     const { rows: created } = await query(
       `INSERT INTO players (org_id, full_name, phone, password_hash, status, role, avatar_url)
@@ -761,7 +761,7 @@ app.post("/api/platform/organizations/:orgId/admins", asyncRoute(async (req, res
 
 app.use("/api/admin", asyncRoute(async (req, res, next) => {
   const user = await currentUser(req);
-  if (!requireRole(user, ["admin", "stats_admin"])) return res.status(403).json({ error: "אין הרשאת אדמין" });
+  if (!requireRole(user, ["admin", "stats_admin"])) return res.status(403).json({ error: "אין הרשאה לפעולה הזו" });
   req.user = user;
   next();
 }));
@@ -1153,7 +1153,7 @@ app.delete("/api/admin/subscriptions/:subId/signups/:signupId", asyncRoute(async
 // stats_admin shares full access to) — worth the one extra role check.
 function requireFullAdmin(req, res) {
   if (req.user.role !== "admin") {
-    res.status(403).json({ error: "רק אדמין ראשי יכול לשלוח התראות" });
+    res.status(403).json({ error: "אין הרשאה לשלוח התראות" });
     return false;
   }
   return true;
