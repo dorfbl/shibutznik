@@ -978,7 +978,7 @@ function PlayerHome({ player, bundle, subscription, reload, setToast, askConfirm
           <div className="ticket-when">
             <span className="ticket-day">{fixtureDay(bundle?.match.match_date)}</span>
             <div className="ticket-date">
-              <h2 className="upcoming-date">{fixtureWeekdayMonth(bundle?.match.match_date)}</h2>
+              <h2 className="upcoming-date">{fixtureMonthWeekday(bundle?.match.match_date)}</h2>
               <span className="meta-row">
                 <span><Clock size={16} /> {bundle?.match.starts_at?.slice(0, 5)}</span>
                 {bundle?.match.location && <span><MapPin size={16} /> {bundle.match.location}</span>}
@@ -1882,7 +1882,10 @@ function SubscriptionCard({ subscription, player, reload, setToast, askConfirm, 
           so "4 11 18 25" says it all. Not the admin's calendar grid. */}
       <div className="subscription-dates">
         {subscription.match_dates.map((iso) => (
-          <span className="subscription-day" key={iso} title={isoToDisplay(iso)}>{Number(iso.slice(8, 10))}</span>
+          <span className="subscription-day" key={iso} title={isoToDisplay(iso)}>
+            {Number(iso.slice(8, 10))}
+            <small className="subscription-day-month" aria-hidden="true">{Number(iso.slice(5, 7))}</small>
+          </span>
         ))}
       </div>
       <div className="stat-grid">
@@ -4116,7 +4119,7 @@ function AdminSubscription({ data, mutate, setToast }) {
           ))}
         </div>
       )}
-      <article className="glass">
+      <article className="glass admin-subscription-card">
         <div className="section-head">
           <div>
             <p className="eyebrow">מנוי חודשי</p>
@@ -4132,19 +4135,19 @@ function AdminSubscription({ data, mutate, setToast }) {
           onToggle={toggleDay}
         />
 
-        <div className="form-grid">
+        {/* Price in, totals out — one row, so cause and effect sit side by
+            side (and the card stays short on a phone). */}
+        <div className="subscription-pricing">
           <Field label="מחיר למשחק">
             <input
               type="number"
               min="0"
+              inputMode="numeric"
               value={priceDraft}
               onChange={(event) => setPriceDraft(event.target.value)}
               onBlur={savePrice}
             />
           </Field>
-        </div>
-
-        <div className="stat-grid">
           <Metric icon={CalendarDays} label="ימי משחק" value={dayCount} />
           <Metric icon={Wallet} label="סה״כ לתשלום" value={`${liveTotal}₪`} />
         </div>
@@ -7836,18 +7839,18 @@ function formatDate(date) {
 }
 
 // Home-page fixture ticket: the day of the month on its own ("23"), and the
-// weekday + month name that go beside it ("יום רביעי · ספטמבר").
+// month name + weekday that go beside it ("ספטמבר · יום רביעי").
 function fixtureDay(date) {
   if (!date) return "";
   return new Intl.DateTimeFormat("he-IL", { day: "numeric" }).format(new Date(date));
 }
 
-function fixtureWeekdayMonth(date) {
+function fixtureMonthWeekday(date) {
   if (!date) return "";
   const d = new Date(date);
   const weekday = new Intl.DateTimeFormat("he-IL", { weekday: "long" }).format(d);
   const month = new Intl.DateTimeFormat("he-IL", { month: "long" }).format(d);
-  return `${weekday} · ${month}`;
+  return `${month} · ${weekday}`;
 }
 
 // Date + time down to the second — for the one spot (the registration

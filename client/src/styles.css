@@ -4756,3 +4756,56 @@ button.pitch-field-title:disabled { opacity: 1; }
 @media (min-width: 860px) {
   .hero-panel { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* ==========================================================================
+   Admin — monthly subscription card
+   Even spacing between calendar, pricing row and the publish/hide button;
+   price + both totals share one row, and everything tightens on a phone.
+   ========================================================================== */
+.admin-subscription-card { display: grid; gap: var(--space-4); align-content: start; }
+.admin-subscription-card > * { margin: 0; }
+.admin-subscription-card .section-head { margin-bottom: 0; }
+.admin-subscription-card .month-grid { margin: 0; }
+.subscription-pricing {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+  align-items: stretch;
+}
+.subscription-pricing .field { margin: 0; display: grid; align-content: end; gap: 6px; }
+.subscription-pricing .metric { justify-content: center; }
+.admin-subscription-card > button { justify-self: stretch; }
+
+@media (max-width: 759px) {
+  .admin-subscription-card { gap: 12px; }
+  .admin-subscription-card .month-grid { gap: 3px; max-width: none; }
+  .admin-subscription-card .month-grid-day { aspect-ratio: auto; height: 34px; font-size: .78rem; border-radius: 8px; }
+  .admin-subscription-card .month-grid-weekday { padding-bottom: 2px; }
+  .subscription-pricing { gap: 8px; }
+  .subscription-pricing .metric { padding: 8px 4px; }
+  .subscription-pricing .metric svg { display: none; }
+  .subscription-pricing .metric strong { font-size: 1.2rem; }
+  .subscription-pricing .metric span { font-size: .68rem; }
+  .subscription-pricing input { min-height: 40px; padding-block: 8px; }
+}
+
+/* Player subscription tiles: a tiny month number tucked in the corner */
+.subscription-day { position: relative; }
+.subscription-day-month {
+  position: absolute;
+  top: 4px;
+  inset-inline-end: 6px;
+  font-family: var(--font-body);
+  font-size: .58rem;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--ink-4);
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 759px) {
+  /* Subscriber rows: name/amount and the three actions in a tighter block */
+  .subscriber-row { padding: 10px 12px; gap: 8px 10px; }
+  .subscriber-row img { width: 36px; height: 36px; }
+  .subscriber-row .row-actions { gap: 6px; }
+  .subscriber-row .row-actions button { min-height: 34px; padding: 5px 10px; font-size: .8rem; }
+}
