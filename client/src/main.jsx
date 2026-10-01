@@ -6,6 +6,7 @@ import {
   Activity,
   ArrowLeftRight,
   Bell,
+  BellOff,
   Building2,
   CalendarDays,
   Check,
@@ -27,6 +28,7 @@ import {
   LayoutDashboard,
   LogOut,
   MapPin,
+  MessageCircle,
   Minus,
   Moon,
   MoreVertical,
@@ -36,6 +38,7 @@ import {
   RotateCcw,
   RotateCw,
   Search,
+  Send,
   Settings,
   ShieldAlert,
   SlidersHorizontal,
@@ -56,6 +59,37 @@ import "./styles.css";
 
 const API = import.meta.env.VITE_API_URL || "http://10.10.10.15:3015";
 const APP_NAME = "שיבוצניק";
+
+// A session "goes stale" after an hour with no real interaction (idle in the
+// foreground counts the same as being backgrounded or fully closed) — see
+// isSessionStale/markSessionActive, used by App to decide whether to resume
+// the last-visited tab or send an admin straight to the control page.
+const SESSION_IDLE_MS = 60 * 60 * 1000;
+
+function markSessionActive() {
+  try { localStorage.setItem("badat:last-active", String(Date.now())); } catch { /* storage unavailable */ }
+}
+
+function isSessionStale() {
+  const last = Number(localStorage.getItem("badat:last-active")) || 0;
+  return !last || Date.now() - last > SESSION_IDLE_MS;
+}
+
+// sessionStorage belongs to this specific tab/process, not the device — an
+// ordinary refresh (or the PWA merely being backgrounded) keeps it, but a
+// real close (a tab closed, or an iOS PWA killed from the app switcher)
+// throws it away, so its absence on mount means "closed completely" even if
+// the device was reopened seconds later, well inside the 1-hour idle window
+// isSessionStale alone checks for.
+function isFreshBrowserSession() {
+  try {
+    if (sessionStorage.getItem("badat:session-started")) return false;
+    sessionStorage.setItem("badat:session-started", "1");
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 // Browser tab shows just the club once signed in, the product name otherwise.
 function useDocumentTitle(orgName) {
@@ -211,7 +245,7 @@ function applyTheme(theme) {
     // Private browsing etc. — the toggle still works for this tab, it just
     // won't be remembered next visit.
   }
-  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme === "light" ? "#e9f0e8" : "#14161a");
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme === "light" ? "#f1f4f0" : "#0c1511");
 }
 
 function ThemeToggle({ theme, onToggle }) {
@@ -237,9 +271,31 @@ function App() {
     applyTheme(next);
   }
   const { loading, error, data, reload } = useApi(authUser);
-  // Persisted so a refresh (or reopening the PWA) lands back on whichever
-  // tab you were on, not always "player".
-  const [view, setView] = useState(() => localStorage.getItem("badat:view") || "player");
+  // Persisted so a same-session refresh lands back on whichever tab you were
+  // on, not always "player" — UNLESS the session is a genuinely fresh one (a
+  // real close, e.g. an iOS PWA killed from the app switcher — see
+  // isFreshBrowserSession) or the previous one went stale (no interaction
+  // for an hour): an admin lands on the control page instead, since the
+  // numbers there are the ones most likely to have moved during the gap;
+  // anyone else always lands on the main player page.
+  const [view, setView] = useState(() => {
+    // Both calls run unconditionally: isFreshBrowserSession marks the
+    // session even when isSessionStale alone would already force a reset.
+    const freshSession = isFreshBrowserSession();
+    const stale = isSessionStale();
+    if (freshSession || stale) {
+      if (authUser?.role === "admin") {
+        localStorage.setItem("badat:admin-tab", "control");
+        return "admin";
+      }
+      return "player";
+    }
+    return localStorage.getItem("badat:view") || "player";
+  });
+  // Bumped whenever a stale session is caught while AdminView is already
+  // mounted (tab stayed open in the background past the hour) — AdminView's
+  // own tab state won't re-read localStorage on its own, so it watches this.
+  const [adminTabResetSignal, setAdminTabResetSignal] = useState(0);
   useEffect(() => {
     localStorage.setItem("badat:view", view);
   }, [view]);
@@ -248,6 +304,35 @@ function App() {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [view]);
+  // Real interaction resets the idle clock; a backgrounded or merely visible
+  // (but untouched) tab does not, so an hour of inactivity is caught whether
+  // or not the app ever actually closed.
+  useEffect(() => {
+    markSessionActive();
+    const events = ["pointerdown", "keydown", "touchstart"];
+    events.forEach((type) => window.addEventListener(type, markSessionActive, { passive: true }));
+    return () => events.forEach((type) => window.removeEventListener(type, markSessionActive));
+  }, []);
+  // Catches the case where the tab was never unloaded but sat backgrounded
+  // (or just idle) past the threshold — on the initial mount check above,
+  // that same gap only gets noticed on a fresh page load.
+  useEffect(() => {
+    function onVisible() {
+      if (document.visibilityState !== "visible") return;
+      if (isSessionStale()) {
+        if (authUser?.role === "admin") {
+          localStorage.setItem("badat:admin-tab", "control");
+          setView("admin");
+          setAdminTabResetSignal((count) => count + 1);
+        } else {
+          setView("player");
+        }
+      }
+      markSessionActive();
+    }
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [authUser?.role]);
   const [adminData, setAdminData] = useState(null);
   const [adminMatchId, setAdminMatchId] = useState(null);
   // Mirrors adminMatchId synchronously (a ref updates immediately, state
@@ -262,6 +347,20 @@ function App() {
   }
   const [toast, setToast] = useState(null);
   const [confirm, setConfirm] = useState(null);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  // "Unread" is just "newer than the last time the bell was opened" —
+  // tracked locally, no server-side read state to keep in sync.
+  const [notifSeenAt, setNotifSeenAt] = useState(() => Number(localStorage.getItem("badat:notifications-seen-at")) || 0);
+  const unreadNotifCount = (data?.notifications || []).filter(
+    (row) => new Date(row.created_at).getTime() > notifSeenAt
+  ).length;
+  function openNotifications() {
+    setNotifOpen(true);
+    const now = Date.now();
+    localStorage.setItem("badat:notifications-seen-at", String(now));
+    setNotifSeenAt(now);
+  }
 
   const currentUser = data?.user || authUser;
   useDocumentTitle(data?.organization?.name);
@@ -381,7 +480,14 @@ function App() {
       <div className="topbar-row">
         <header className="topbar glass">
           <div className="topbar-id">
-            {selectedPlayer?.avatar_url && <img className="avatar topbar-avatar" src={selectedPlayer.avatar_url} alt="" />}
+            <ProfileMenu
+              player={selectedPlayer}
+              role={currentUser?.role}
+              isPlatformAdmin={currentUser?.is_platform_admin}
+              view={view}
+              onOpenProfile={() => setProfileOpen(true)}
+              onNavigate={setView}
+            />
             <div>
               <p className="eyebrow">{data?.organization?.name || APP_NAME}</p>
               <h1>
@@ -393,35 +499,63 @@ function App() {
             </div>
           </div>
           <div className="toolbar">
+            <button
+              type="button"
+              className="ghost icon-only notif-bell-btn"
+              onClick={openNotifications}
+              aria-label="התראות"
+              title="התראות"
+            >
+              <Bell size={18} />
+              {unreadNotifCount > 0 && <span className="notif-badge">{unreadNotifCount > 9 ? "9+" : unreadNotifCount}</span>}
+            </button>
             <ThemeToggle theme={theme} onToggle={toggleTheme} />
             <button className="ghost icon-only" onClick={logout} aria-label="התנתק" title="התנתק">
               <LogOut size={18} />
             </button>
           </div>
         </header>
+        {notifOpen && <NotificationCenter notifications={data?.notifications || []} onClose={() => setNotifOpen(false)} />}
+        {profileOpen && (
+          <ProfileStats
+            player={selectedPlayer}
+            reload={reload}
+            setToast={setToast}
+            organizations={data?.organizations}
+            activeOrgId={currentUser?.org_id}
+            onSwitchOrg={switchOrg}
+            onClose={() => setProfileOpen(false)}
+          />
+        )}
 
         {/* Kept as a sibling of header, never nested inside it — .topbar has a
             backdrop-filter, which would make it the containing block for this
             nav's position:fixed on mobile, breaking the bottom-bar anchoring. */}
-        <Segmented
-          value={view}
-          onChange={setView}
-          role={currentUser?.role}
-          isPlatformAdmin={currentUser?.is_platform_admin}
-        />
+        <Segmented value={view} onChange={setView} />
       </div>
 
       <main>
+        {/* Admin and organization management are modes you enter from the
+            profile menu — this strip says which one you're in and is the
+            one-tap way back to the player's pages. */}
+        {(view === "admin" || view === "platform") && (
+          <div className="admin-mode-bar">
+            {view === "admin" ? <UserCog size={16} aria-hidden="true" /> : <Building2 size={16} aria-hidden="true" />}
+            <span>{view === "admin" ? "מצב ניהול" : "ניהול ארגונים"}</span>
+            {view === "admin" && data?.organization?.name && <strong>{data.organization.name}</strong>}
+            <button type="button" className="admin-mode-exit" onClick={() => setView("player")}>
+              חזרה לשחקן
+            </button>
+          </div>
+        )}
         {view === "player" && (
           <PlayerHome
             player={selectedPlayer}
             bundle={data.activeMatch}
+            subscription={data.subscription}
             reload={reload}
             setToast={setToast}
             askConfirm={(options) => setConfirm(options)}
-            organizations={data?.organizations}
-            activeOrgId={currentUser?.org_id}
-            onSwitchOrg={switchOrg}
             settings={data.settings}
           />
         )}
@@ -430,7 +564,7 @@ function App() {
           squadPublished && myAssignment ? (
             <ResultsEntryView pitchId={myAssignment.pitch.id} pitchLabel={myAssignment.pitch.label} player={selectedPlayer} setToast={setToast} />
           ) : (
-            <ResultsUnavailableNotice squadPublished={squadPublished} />
+            <ResultsUnavailableNotice squadPublished={squadPublished} status={data.activeMatch?.match?.status} />
           )
         )}
         {view === "stats" && <StatsView bundle={data.activeMatch} players={data.players} selectedPlayer={selectedPlayer} />}
@@ -444,6 +578,7 @@ function App() {
             setSelectedMatchId={setAdminMatchIdSynced}
             setToast={setToast}
             askConfirm={(options) => setConfirm(options)}
+            forceControlTabSignal={adminTabResetSignal}
           />
         )}
         {view === "platform" && currentUser?.is_platform_admin && (
@@ -656,16 +791,15 @@ function OrgSwitcher({ user, organizations, onSwitch }) {
   );
 }
 
-function Segmented({ value, onChange, role, isPlatformAdmin }) {
+// The four pages every player uses. Admin mode and organization management
+// are reached from the profile menu instead (see ProfileMenu), so this bar
+// is the same for everyone and fits a phone's bottom edge.
+function Segmented({ value, onChange }) {
   const options = [
     ["player", "ראשי", LayoutDashboard],
     ["match", "הרכבים", Users],
     ["results", "תיעוד תוצאות", Goal],
-    ["stats", "סטטיסטיקות", Trophy],
-    ...(role === "admin" || role === "stats_admin" ? [["admin", "אדמין", UserCog]] : []),
-    // Independent of the org role above — a platform admin manages
-    // organizations regardless of their (if any) role in any single one.
-    ...(isPlatformAdmin ? [["platform", "ניהול ארגונים", Building2]] : [])
+    ["stats", "סטטיסטיקות", Trophy]
   ];
   return (
     <nav className="segmented">
@@ -679,7 +813,71 @@ function Segmented({ value, onChange, role, isPlatformAdmin }) {
   );
 }
 
-function PlayerHome({ player, bundle, reload, setToast, askConfirm, organizations, activeOrgId, onSwitchOrg, settings }) {
+// Behind the topbar avatar: your profile, plus admin mode / organization
+// management for whoever has those roles. A platform admin gets the
+// organizations entry regardless of their role in the current org.
+function ProfileMenu({ player, role, isPlatformAdmin, view, onOpenProfile, onNavigate }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = React.useRef(null);
+  useEffect(() => {
+    if (!open) return undefined;
+    function onPointerDown(event) {
+      if (rootRef.current && !rootRef.current.contains(event.target)) setOpen(false);
+    }
+    function onKey(event) { if (event.key === "Escape") setOpen(false); }
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const isAdmin = role === "admin" || role === "stats_admin";
+  const items = [
+    ["profile", "הפרופיל שלי", CircleUserRound, onOpenProfile],
+    ...(isAdmin ? [["admin", "מצב ניהול", UserCog, () => onNavigate("admin")]] : []),
+    ...(isPlatformAdmin ? [["platform", "ניהול ארגונים", Building2, () => onNavigate("platform")]] : [])
+  ];
+  const initials = (player?.full_name || "").split(" ").map((word) => word[0]).join("").slice(0, 2);
+
+  return (
+    <div className="profile-menu" ref={rootRef}>
+      <button
+        type="button"
+        className="topbar-avatar-btn"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="תפריט פרופיל"
+        onClick={() => setOpen((value) => !value)}
+      >
+        {player?.avatar_url
+          ? <img className="avatar topbar-avatar" src={player.avatar_url} alt="" />
+          : <span className="avatar topbar-avatar topbar-initials">{initials}</span>}
+        <span className="profile-menu-caret" aria-hidden="true"><ChevronDown size={12} strokeWidth={3} /></span>
+      </button>
+      {open && (
+        <div className="profile-menu-list" role="menu">
+          {items.map(([id, label, Icon, action]) => (
+            <button
+              key={id}
+              type="button"
+              role="menuitem"
+              className={view === id ? "current" : ""}
+              onClick={() => { setOpen(false); action(); }}
+            >
+              <Icon size={18} aria-hidden="true" />
+              <span>{label}</span>
+              {view === id && <Check size={16} className="profile-menu-check" aria-hidden="true" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PlayerHome({ player, bundle, subscription, reload, setToast, askConfirm, settings }) {
   const assignment = teamsVisible(bundle?.match?.status) ? findAssignment(bundle, player?.id) : null;
   const statsEnabled = settings?.player_stats_visible !== false;
   const [statsPlayer, setStatsPlayer] = useState(null);
@@ -725,18 +923,63 @@ function PlayerHome({ player, bundle, reload, setToast, askConfirm, organization
     });
   }
 
+  async function subscribeToOpenSubscription() {
+    const response = await fetch(`${API}/api/subscriptions/${subscription.id}/signup`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ playerId: player.id })
+    });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      showToast(setToast, payload.error || "ההצטרפות נכשלה", "error");
+      return;
+    }
+    await reload();
+    showToast(setToast, "נרשמת למנוי", "success");
+  }
+
+  // The page's own layout never moves — this only decides what shows up in
+  // the "דורש טיפול" panel at the top, which empties out (and disappears)
+  // on its own as each item gets addressed and reload() brings fresh data.
+  const actionItems = [];
+  if (canRegister && !registration) {
+    actionItems.push({
+      key: "fixture",
+      icon: CalendarDays,
+      text: "ההרשמה למחזור הקרוב פתוחה",
+      action: (
+        <div className="action-item-buttons">
+          <button className="primary" onClick={() => submit(true)}>אני מגיע</button>
+          <button onClick={() => submit(false)}>לא מגיע</button>
+        </div>
+      )
+    });
+  }
+  if (subscription && !subscription.mySignup) {
+    actionItems.push({
+      key: "subscription",
+      icon: Wallet,
+      text: `מנוי חודשי ל${monthLabel(subscription.year, subscription.month)} נפתח`,
+      action: <button className="primary" onClick={subscribeToOpenSubscription}>הצטרפות למנוי</button>
+    });
+  }
+
   return (
     <section className="grid two">
+      <PushNotificationPrompt player={player} setToast={setToast} />
+      <ActionItemsPanel items={actionItems} />
       <article className="hero-panel glass">
         <div className="hero-copy">
           <p className="eyebrow"><CalendarDays size={13} /> המשחק הקרוב</p>
           {/* The date/time is the one fact a player actually needs at a glance —
               the fixture's internal title and the registration/waitlist counts
               are admin bookkeeping, not something to lead with here. */}
-          <h2 className="upcoming-date">{formatDate(bundle?.match.match_date)}</h2>
-          <div className="meta-row">
-            <span><Clock size={16} /> {bundle?.match.starts_at?.slice(0, 5)}</span>
-            <span><MapPin size={16} /> {bundle?.match.location}</span>
+          <div className="ticket-when">
+            <span className="ticket-time">{bundle?.match.starts_at?.slice(0, 5)}</span>
+            <div className="ticket-date">
+              <h2 className="upcoming-date">{formatDate(bundle?.match.match_date)}</h2>
+              {bundle?.match.location && <span className="meta-row"><span><MapPin size={16} /> {bundle.match.location}</span></span>}
+            </div>
           </div>
           {bundle?.match.banner && <div className="notice"><Bell size={18} />{bundle.match.banner}</div>}
           {canRegister && !isSignedUp && (
@@ -746,7 +989,10 @@ function PlayerHome({ player, bundle, reload, setToast, askConfirm, organization
             </div>
           )}
           {canRegister && isSignedUp && (
-            <div className="notice"><Check size={18} />{signedUpText(registration?.status)}</div>
+            <div className={`notice tone-${registration?.status}`}>
+              {registration?.status === "attending" ? <Check size={18} /> : <Clock size={18} />}
+              {signedUpText(registration?.status)}
+            </div>
           )}
           {!canRegister && (
             <div className="notice"><Bell size={18} />{registrationClosedText(bundle?.match, player)}</div>
@@ -761,7 +1007,7 @@ function PlayerHome({ player, bundle, reload, setToast, askConfirm, organization
         <StatusCard registration={registration} player={player} />
       </article>
 
-      <article className="glass personal-card">
+      <article className={`glass ${assignment ? "personal-card" : "round-card"}`}>
         {assignment ? (
           <>
             <p className="eyebrow">היום אני משחק</p>
@@ -793,25 +1039,45 @@ function PlayerHome({ player, bundle, reload, setToast, askConfirm, organization
             </div>
           </>
         ) : (
+          // No lineup yet: say where the round stands instead of an empty card.
           <>
-            <CircleUserRound size={52} />
-            <h2>עדיין אין שיבוץ</h2>
-            <p>אחרי פרסום ההרכבים תראה כאן מגרש, צבע קבוצה וארבעת החברים שלך.</p>
+            <p className="eyebrow">המחזור עכשיו</p>
+            <RoundTimeline status={bundle?.match?.status} />
+            <p className="muted">{ROUND_CAPTIONS[bundle?.match?.status] || ROUND_CAPTIONS.draft}</p>
           </>
         )}
         {statsPlayer && <PlayerStatsModal player={statsPlayer} onClose={() => setStatsPlayer(null)} />}
       </article>
 
-      <ProfileStats
-        player={player}
-        reload={reload}
-        setToast={setToast}
-        organizations={organizations}
-        activeOrgId={activeOrgId}
-        onSwitchOrg={onSwitchOrg}
-      />
       <RecentMatch bundle={bundle} player={player} />
+      {subscription && (
+        <SubscriptionCard subscription={subscription} player={player} reload={reload} setToast={setToast} askConfirm={askConfirm} wide />
+      )}
     </section>
+  );
+}
+
+// The one dynamic thing on an otherwise-static home page: a compact "needs
+// your attention" summary at the very top, so a new fixture registration or
+// a freshly published subscription doesn't get missed among static cards
+// further down. Empties out (and disappears) on its own — items come from
+// live state in PlayerHome, not a dismiss flag, so addressing one (or an
+// admin closing the window) removes it immediately on the next reload.
+function ActionItemsPanel({ items }) {
+  if (!items.length) return null;
+  return (
+    <article className="glass action-items wide">
+      <p className="eyebrow">דורש טיפול</p>
+      <div className="action-items-list">
+        {items.map((item) => (
+          <div className="action-item-row" key={item.key}>
+            <item.icon size={18} className="action-item-icon" aria-hidden="true" />
+            <span>{item.text}</span>
+            {item.action}
+          </div>
+        ))}
+      </div>
+    </article>
   );
 }
 
@@ -1267,26 +1533,74 @@ function StatusCard({ registration, player }) {
   const label = reviewed ? `הביטול טופל · ${registration.cancellation_review}` : labels[registration?.status];
   return (
     <div className="status-card">
-      <span className="pill">{player?.is_monthly_member ? "מנוי פעיל" : "מזדמן"}</span>
-      {player?.credits > 0 && (
-        <span className="pill credit-pill" title="זיכוי מקוזז אוטומטית בהרשמה הבאה כחד־פעמי">
-          {player.credits} {player.credits === 1 ? "זיכוי" : "זיכויים"}
-        </span>
-      )}
-      <strong>{label || "לא נרשמת עדיין"}</strong>
+      <div className="status-card-pills">
+        <span className="pill">{player?.is_monthly_member ? "מנוי פעיל" : "מזדמן"}</span>
+        {player?.credits > 0 && (
+          <span className="pill credit-pill" title="זיכוי מקוזז אוטומטית בהרשמה הבאה כחד־פעמי">
+            {player.credits} {player.credits === 1 ? "זיכוי" : "זיכויים"}
+          </span>
+        )}
+      </div>
+      <strong className={`status-line ${reviewed ? "" : registration?.status || ""}`}>{label || "לא נרשמת עדיין"}</strong>
       {reviewed && <small>הביטול נבדק על ידי האדמין. אפשר להירשם שוב למחזור הבא.</small>}
     </div>
   );
 }
 
-function ProfileStats({ player, reload, setToast, organizations, activeOrgId, onSwitchOrg }) {
+// Opened from the topbar avatar rather than living permanently on the home
+// page — the profile card competed with things that actually change
+// (registration, subscription, this week's game) for the same prime real
+// estate every day, for content that's basically static.
+function ProfileStats({ player, reload, setToast, organizations, activeOrgId, onSwitchOrg, onClose }) {
   const [stats, setStats] = useState(null);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState({ full_name: "", avatar_url: "" });
+  useBackButtonClose(onClose);
+
+  useEffect(() => {
+    const scrollY = window.scrollY;
+    const body = document.body;
+    body.classList.add("modal-open");
+    body.style.top = `-${scrollY}px`;
+    return () => {
+      body.classList.remove("modal-open");
+      body.style.top = "";
+      window.scrollTo(0, scrollY);
+    };
+  }, []);
+
+  useEffect(() => {
+    function onKey(event) { if (event.key === "Escape") onClose(); }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  // "unsupported" | "off" | "on" | "busy" — busy while a toggle is in flight,
+  // so the button doesn't look clickable mid-permission-prompt.
+  const [notifStatus, setNotifStatus] = useState("off");
   useEffect(() => {
     if (!player?.id) return;
     fetch(`${API}/api/players/${player.id}/stats`).then((response) => response.json()).then(setStats);
   }, [player?.id]);
+
+  useEffect(() => {
+    if (!pushSupported()) { setNotifStatus("unsupported"); return; }
+    if (Notification.permission !== "granted") { setNotifStatus("off"); return; }
+    navigator.serviceWorker.getRegistration("/sw.js").then(async (registration) => {
+      const subscription = await registration?.pushManager.getSubscription();
+      setNotifStatus(subscription ? "on" : "off");
+    });
+  }, [player?.id]);
+
+  async function toggleNotifications() {
+    setNotifStatus("busy");
+    if (notifStatus === "on") {
+      await disablePushNotifications(setToast);
+      setNotifStatus("off");
+    } else {
+      const enabled = await enablePushNotifications(player, setToast);
+      setNotifStatus(enabled ? "on" : "off");
+    }
+  }
 
   function startEditing() {
     setDraft({ full_name: player?.full_name || "", avatar_url: player?.avatar_url || "" });
@@ -1306,48 +1620,77 @@ function ProfileStats({ player, reload, setToast, organizations, activeOrgId, on
     showToast(setToast, "הפרופיל עודכן", "success");
   }
 
-  return (
-    <article className="glass">
-      <div className="section-head">
-        <div>
-          <p className="eyebrow">פרופיל</p>
-          <h2>{player?.full_name}</h2>
-        </div>
-        {editing ? (
-          <button onClick={() => setEditing(false)}>ביטול</button>
-        ) : (
+  return createPortal(
+    <div
+      className="modal-backdrop"
+      onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
+    >
+      <article className="glass profile-modal-card" role="dialog" aria-modal="true" aria-labelledby="profile-modal-title">
+        <div className="section-head">
+          <div>
+            <p className="eyebrow">פרופיל</p>
+            <h2 id="profile-modal-title">{player?.full_name}</h2>
+          </div>
+          {/* A normal flex item alongside the edit controls, not an
+              absolutely-positioned corner button (.modal-close) — that only
+              works for a card with nothing else claiming the same corner,
+              which this one's own header already does. */}
           <div className="actions">
-            <img className="avatar" src={player?.avatar_url} alt="" />
-            <button className="ghost" onClick={startEditing} aria-label="עריכת פרופיל"><Pencil size={16} /></button>
+            {editing ? (
+              <button onClick={() => setEditing(false)}>ביטול</button>
+            ) : (
+              <>
+                <img className="avatar" src={player?.avatar_url} alt="" />
+                <button className="ghost" onClick={startEditing} aria-label="עריכת פרופיל"><Pencil size={16} /></button>
+              </>
+            )}
+            <button className="ghost icon-only" onClick={onClose} aria-label="סגירה"><X size={18} /></button>
+          </div>
+        </div>
+        {editing && (
+          <div className="form-grid">
+            <AvatarUpload value={draft.avatar_url} onChange={(url) => setDraft({ ...draft, avatar_url: url })} />
+            <input placeholder="שם מלא" value={draft.full_name} onChange={(event) => setDraft({ ...draft, full_name: event.target.value })} />
+            <button className="primary" onClick={save}>שמור</button>
           </div>
         )}
-      </div>
-      {editing && (
-        <div className="form-grid">
-          <AvatarUpload value={draft.avatar_url} onChange={(url) => setDraft({ ...draft, avatar_url: url })} />
-          <input placeholder="שם מלא" value={draft.full_name} onChange={(event) => setDraft({ ...draft, full_name: event.target.value })} />
-          <button className="primary" onClick={save}>שמור</button>
+        {organizations?.length > 1 && (
+          <div className="profile-org-switch">
+            <span className="muted">ארגון</span>
+            <OrgSwitcher user={{ org_id: activeOrgId }} organizations={organizations} onSwitch={onSwitchOrg} />
+          </div>
+        )}
+        {notifStatus === "unsupported" ? (
+          <p className="muted notif-hint">
+            <BellOff size={14} /> להפעלת התראות ב-iPhone יש קודם להוסיף את האפליקציה למסך הבית
+          </p>
+        ) : (
+          <button
+            type="button"
+            className={notifStatus === "on" ? "ghost notif-toggle on" : "ghost notif-toggle"}
+            disabled={notifStatus === "busy"}
+            onClick={toggleNotifications}
+          >
+            {notifStatus === "on" ? <><Bell size={16} /> התראות פעילות</> : <><BellOff size={16} /> הפעלת התראות</>}
+          </button>
+        )}
+        <div className="stat-grid">
+          <Metric icon={CalendarDays} label="משחקים" value={stats?.totals.appearances ?? 0} />
+          <Metric icon={Goal} label="שערים" value={stats?.totals.goals ?? 0} />
+          <Metric icon={Activity} label="בישולים" value={stats?.totals.assists ?? 0} />
         </div>
-      )}
-      {organizations?.length > 1 && (
-        <div className="profile-org-switch">
-          <span className="muted">ארגון</span>
-          <OrgSwitcher user={{ org_id: activeOrgId }} organizations={organizations} onSwitch={onSwitchOrg} />
-        </div>
-      )}
-      <div className="stat-grid">
-        <Metric icon={CalendarDays} label="משחקים" value={stats?.totals.appearances ?? 0} />
-        <Metric icon={Goal} label="שערים" value={stats?.totals.goals ?? 0} />
-        <Metric icon={Activity} label="בישולים" value={stats?.totals.assists ?? 0} />
-      </div>
-      <p className="muted">הצטרף לקהילה: {formatDate(player?.joined_at)}</p>
-    </article>
+        <p className="muted">הצטרף לקהילה: {formatDate(player?.joined_at)}</p>
+      </article>
+    </div>,
+    document.body
   );
 }
 
 function RecentMatch({ bundle, player }) {
   const goals = bundle?.goals?.filter((goal) => goal.scorer_id === player?.id).length || 0;
   const assists = bundle?.goals?.filter((goal) => goal.assist_id === player?.id).length || 0;
+  // Before stats are published this was a row of zeros — show nothing instead.
+  if (!statsVisible(bundle?.match?.status)) return null;
   return (
     <article className="glass">
       <p className="eyebrow">מחזור אחרון</p>
@@ -1357,6 +1700,197 @@ function RecentMatch({ bundle, player }) {
         <Metric icon={Goal} label="שערים שלך" value={goals} />
         <Metric icon={Activity} label="בישולים שלך" value={assists} />
       </div>
+    </article>
+  );
+}
+
+// Shown only while an admin has a monthly subscription window open (see
+// AdminSubscription) — the same read-only calendar the admin sees, plus a
+// one-tap subscribe. Payment stays fully off-app/manual, so there's nothing
+// to do here after subscribing but wait for the admin to mark it paid.
+// A one-time, dismissible prompt on the player's home page — the profile
+// card's toggle (see ProfileStats) is easy to miss since it's tucked into a
+// settings-y area; this asks directly. Shown once until enabled or declined
+// (never again after a decline, tracked in localStorage — never nagging).
+// Where a player sees a notification again after tapping the OS push (or
+// if they never enabled push at all) — a bottom sheet listing everything
+// they were ever sent, newest first. Same sheet chrome as FixtureStatusSheet
+// (.notif-sheet shares its CSS with .status-sheet — see styles.css).
+function NotificationCenter({ notifications, onClose }) {
+  useBackButtonClose(onClose);
+
+  useEffect(() => {
+    const scrollY = window.scrollY;
+    const body = document.body;
+    body.classList.add("modal-open");
+    body.style.top = `-${scrollY}px`;
+    return () => {
+      body.classList.remove("modal-open");
+      body.style.top = "";
+      window.scrollTo(0, scrollY);
+    };
+  }, []);
+
+  useEffect(() => {
+    function onKey(event) { if (event.key === "Escape") onClose(); }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return createPortal(
+    <div
+      className="modal-backdrop"
+      onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
+    >
+      <article className="glass notif-sheet" role="dialog" aria-modal="true" aria-labelledby="notif-sheet-title">
+        <span className="status-sheet-grab" aria-hidden="true" />
+        <div className="status-sheet-head">
+          <h2 id="notif-sheet-title">התראות</h2>
+          <button className="modal-close" aria-label="סגירה" onClick={onClose}><X size={18} /></button>
+        </div>
+        {!notifications.length && <p className="notif-empty">עדיין לא קיבלת התראות</p>}
+        {notifications.length > 0 && (
+          <div className="notif-list">
+            {notifications.map((row) => (
+              <div className="notif-row" key={row.id}>
+                <strong>{row.title}</strong>
+                <p>{row.body}</p>
+                <small>{new Date(row.created_at).toLocaleString("he-IL")}</small>
+              </div>
+            ))}
+          </div>
+        )}
+      </article>
+    </div>,
+    document.body
+  );
+}
+
+function PushNotificationPrompt({ player, setToast }) {
+  const [visible, setVisible] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  async function enable() {
+    setBusy(true);
+    await enablePushNotifications(player, setToast);
+    setVisible(false);
+  }
+
+  function decline() {
+    localStorage.setItem("badat:push-prompt-dismissed", "1");
+    setVisible(false);
+  }
+
+  useEffect(() => {
+    if (!pushSupported()) return;
+    // "denied" is the only truly final state — the browser blocks
+    // re-prompting from JS entirely once that happens. "granted" is NOT
+    // final: the player may have granted it once and later turned it back
+    // off from the profile toggle, so what actually decides whether to ask
+    // again is "is there a live subscription right now", not the
+    // permission alone (disablePushNotifications clears the dismissed flag
+    // below when that happens, so this re-offers on the next visit).
+    if (Notification.permission === "denied") return;
+    if (localStorage.getItem("badat:push-prompt-dismissed")) return;
+    navigator.serviceWorker.getRegistration("/sw.js").then(async (registration) => {
+      const subscription = await registration?.pushManager.getSubscription();
+      if (subscription) return;
+      setVisible(true);
+      // Trigger the OS permission dialog immediately, without waiting for
+      // the button tap below — most browsers allow this on page load. Only
+      // hide the banner if this actually succeeded: a browser that requires
+      // a real gesture (iOS Safari in particular) just quietly does nothing
+      // here, and the banner/button stays up as the fallback for exactly
+      // that case — `silent` skips the toast an unseen attempt would
+      // otherwise confusingly trigger.
+      if (Notification.permission === "default") {
+        const enabled = await enablePushNotifications(player, setToast, true);
+        if (enabled) setVisible(false);
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (!visible) return null;
+
+  return (
+    <article className="glass push-prompt wide">
+      <Bell size={22} className="push-prompt-icon" aria-hidden="true" />
+      <div className="push-prompt-copy">
+        <h2>הישארו מעודכנים</h2>
+        <p>קבלו התראה כשההרשמה נפתחת, ההרכבים מתפרסמים ועוד — בלי לפתוח את האפליקציה כל הזמן.</p>
+      </div>
+      <div className="push-prompt-actions">
+        <button className="primary" onClick={enable} disabled={busy}>הפעלת התראות</button>
+        <button className="ghost" onClick={decline} disabled={busy}>לא עכשיו</button>
+      </div>
+    </article>
+  );
+}
+
+function SubscriptionCard({ subscription, player, reload, setToast, askConfirm, wide }) {
+  async function post(path, body) {
+    const response = await fetch(`${API}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      showToast(setToast, payload.error || "הפעולה נכשלה", "error");
+      return false;
+    }
+    await reload();
+    return true;
+  }
+
+  async function subscribe() {
+    if (await post(`/api/subscriptions/${subscription.id}/signup`, { playerId: player.id })) {
+      showToast(setToast, "נרשמת למנוי", "success");
+    }
+  }
+
+  async function cancelSignup() {
+    if (await post(`/api/subscriptions/${subscription.id}/cancel-signup`, { playerId: player.id })) {
+      showToast(setToast, "ההרשמה בוטלה", "success");
+    }
+  }
+
+  function confirmCancelSignup() {
+    askConfirm({
+      title: "ביטול הרשמה למנוי",
+      tone: "danger",
+      confirmLabel: "ביטול הרשמה",
+      cancelLabel: "הישאר רשום",
+      onConfirm: cancelSignup
+    });
+  }
+
+  const mySignup = subscription.mySignup;
+
+  return (
+    <article className={`glass${wide ? " wide" : ""}`}>
+      <p className="eyebrow">מנוי חודשי</p>
+      <h2>{monthLabel(subscription.year, subscription.month)}</h2>
+      {/* Just the dates that matter to a player — not the calendar grid the
+          admin toggles days on, which reads as an editor here it isn't. */}
+      <div className="subscription-dates">
+        {subscription.match_dates.map((iso) => (
+          <span className="pill" key={iso}>{isoToDisplay(iso)}</span>
+        ))}
+      </div>
+      <div className="stat-grid">
+        <Metric icon={CalendarDays} label="ימי משחק" value={subscription.match_dates.length} />
+        <Metric icon={Wallet} label="סה״כ לתשלום" value={`${subscription.total_price}₪`} />
+      </div>
+      {!mySignup && <button className="primary" onClick={subscribe}>הצטרפות למנוי</button>}
+      {mySignup && !mySignup.paid && (
+        <>
+          <div className="notice"><Bell size={18} />ההרשמה נקלטה — ממתין לתשלום</div>
+          <button onClick={confirmCancelSignup}>ביטול הרשמה</button>
+        </>
+      )}
+      {mySignup?.paid && <div className="notice"><Check size={18} />המנוי שולם ✓</div>}
     </article>
   );
 }
@@ -1377,14 +1911,8 @@ function MatchView({ bundle, player, settings }) {
           </div>
           <span className="pill">הרכבים עדיין לא פורסמו</span>
         </article>
-        {bundle.roster ? (
-          <RosterList roster={bundle.roster} />
-        ) : (
-          <article className="glass">
-            <h2>ההרכבים בתכנון אצל האדמינים</h2>
-            <p className="muted">שחקנים יראו את המגרשים והקבוצות רק אחרי שהאדמין מפרסם את כל ההרכבים.</p>
-          </article>
-        )}
+        <RoundCard status={bundle.match.status} />
+        {bundle.roster && <RosterList roster={bundle.roster} />}
       </section>
     );
   }
@@ -1410,6 +1938,10 @@ function MatchView({ bundle, player, settings }) {
           key={pitch.id}
           pitch={pitch}
           isMine={pitch.id === myPitchId}
+          // Fold the other pitches only when the viewer has one of their own
+          // to look at first; someone not playing sees every lineup open.
+          collapsed={Boolean(myPitchId) && pitch.id !== myPitchId}
+          myPlayerId={player?.id}
           onSelectPlayer={statsEnabled ? setStatsPlayer : undefined}
         />
       ))}
@@ -1467,54 +1999,96 @@ function RosterRow({ row, number }) {
   );
 }
 
-function PitchCard({ pitch, isMine = false, onSelectPlayer }) {
+function PitchCard({ pitch, isMine = false, collapsed = false, myPlayerId, onSelectPlayer }) {
+  const [open, setOpen] = useState(!collapsed);
+  // Your own team first on your own pitch — the lineup you came to check.
+  const teams = isMine
+    ? [...pitch.teams].sort((a, b) => {
+        const aMine = a.players.some((p) => p.id === myPlayerId);
+        const bMine = b.players.some((p) => p.id === myPlayerId);
+        return aMine === bMine ? 0 : aMine ? -1 : 1;
+      })
+    : pitch.teams;
+  const playerCount = pitch.teams.reduce((sum, team) => sum + team.players.length, 0);
   return (
-    <article className="glass pitch-field-card">
+    <article className={`glass pitch-field-card ${isMine ? "mine" : ""} ${open ? "" : "folded"}`}>
       {/* Players only need to know WHICH pitch they are on. Whether it is a
           senior pitch is an admin grouping decision and is deliberately not
           surfaced here. */}
-      <h2 className="pitch-field-title">
-        {pitch.label}
+      <button
+        type="button"
+        className="pitch-field-title"
+        aria-expanded={open}
+        disabled={!collapsed}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <span>{pitch.label}</span>
         {isMine && <span className="pill pitch-mine-tag">המגרש שלך</span>}
-      </h2>
-      <div className="pitch-field">
-        {pitch.teams.map((team) => (
-          <TeamFormation key={team.id} team={team} onSelectPlayer={onSelectPlayer} />
-        ))}
-      </div>
+        {!open && (
+          <span className="pitch-summary">
+            {pitch.teams.map((team) => (
+              <span key={team.id} className="pitch-swatch" style={{ background: team.color_hex }} title={team.color_name} />
+            ))}
+            <span className="muted">{playerCount} שחקנים</span>
+          </span>
+        )}
+        {collapsed && <ChevronDown size={18} className="pitch-fold-icon" aria-hidden="true" />}
+      </button>
+      {open && (
+        <div className="pitch-field">
+          <span className="pitch-box top" aria-hidden="true" />
+          {teams.map((team) => (
+            <TeamFormation
+              key={team.id}
+              team={team}
+              myPlayerId={myPlayerId}
+              onSelectPlayer={onSelectPlayer}
+            />
+          ))}
+          <span className="pitch-box bottom" aria-hidden="true" />
+        </div>
+      )}
     </article>
   );
 }
 
 // A lineup, not a list: 3 players up front, the rest behind them — reads as
 // a team standing on the pitch rather than a roster to scan.
-function TeamFormation({ team, onSelectPlayer }) {
+function TeamFormation({ team, myPlayerId, onSelectPlayer }) {
   const rows = chunk(team.players, 3);
+  const isMyTeam = team.players.some((player) => player.id === myPlayerId);
   return (
-    <div className="formation" style={{ "--team": team.color_hex, "--team-ink": contrastInk(team.color_hex) }}>
+    <div
+      className={`formation ${isMyTeam ? "my-team" : ""}`}
+      style={{ "--team": team.color_hex, "--team-ink": contrastInk(team.color_hex) }}
+    >
       <div className="formation-head">
         <strong>{team.color_name}</strong>
+        {isMyTeam && <span className="formation-mine">הקבוצה שלך</span>}
       </div>
       {rows.map((row, index) => (
         <div className="formation-row" key={index}>
-          {row.map((player) => (
-            onSelectPlayer ? (
+          {row.map((player) => {
+            const isMe = player.id === myPlayerId;
+            const body = (
+              <>
+                <img src={player.avatar_url} alt="" />
+                <span>{player.full_name}</span>
+              </>
+            );
+            return onSelectPlayer ? (
               <button
                 type="button"
-                className="formation-player"
+                className={`formation-player ${isMe ? "me" : ""}`}
                 key={player.id}
                 onClick={() => onSelectPlayer(player)}
               >
-                <img src={player.avatar_url} alt="" />
-                <span>{player.full_name}</span>
+                {body}
               </button>
             ) : (
-              <div className="formation-player" key={player.id}>
-                <img src={player.avatar_url} alt="" />
-                <span>{player.full_name}</span>
-              </div>
-            )
-          ))}
+              <div className={`formation-player ${isMe ? "me" : ""}`} key={player.id}>{body}</div>
+            );
+          })}
         </div>
       ))}
     </div>
@@ -1603,10 +2177,10 @@ function StatsView({ bundle }) {
           </div>
           <span className="pill">עדיין לא פורסמו</span>
         </article>
-        <article className="glass">
-          <h2>הסטטיסטיקות עדיין לא פורסמו</h2>
-          <p className="muted">התוצאות, הטבלה והמצטיינים יוצגו כאן אחרי שהאדמין מפרסם אותם.</p>
-        </article>
+        <RoundCard
+          status={bundle?.match?.status}
+          caption="התוצאות, הטבלה והמצטיינים יוצגו כאן אחרי שהאדמין יפרסם אותם."
+        />
       </section>
     );
   }
@@ -1972,16 +2546,48 @@ const ADMIN_TAB_ICONS = {
   players: UserCog,
   registration: ClipboardList,
   teams: Users,
+  subscription: Wallet,
+  notifications: Bell,
   results: Goal,
   settings: Settings,
   audit: History
 };
 
-function AdminView({ data, reload, refreshAll, user, selectedMatchId, setSelectedMatchId, setToast, askConfirm }) {
+// Nine flat tabs stopped fitting a mobile horizontal scroller comfortably —
+// grouped into two everyday buckets instead: everything about running THIS
+// fixture, and everything about the club/players in general. The active
+// group is always derived from the current tab (see groupForTab), never
+// tracked separately, so every existing setTab(...) call site (alerts'
+// "go to teams", the stale-session control-tab jump, ...) keeps working
+// unchanged — switching to a tab in the other group just switches the
+// visible group along with it.
+const ADMIN_TAB_GROUPS = [
+  ["fixture", "ניהול מחזור", CalendarDays, [
+    ["fixtures", "מחזורים"],
+    ["control", "בקרה"],
+    ["registration", "הרשמה"],
+    ["teams", "מגרשים וקבוצות"],
+    ["results", "תוצאות"]
+  ]],
+  ["club", "ניהול מועדון", Building2, [
+    ["players", "שחקנים"],
+    ["subscription", "מנוי חודשי"],
+    ["notifications", "התראות"],
+    ["settings", "הגדרות"],
+    ["audit", "לוג"]
+  ]]
+];
+
+function groupForTab(tabId) {
+  const found = ADMIN_TAB_GROUPS.find(([, , , groupTabs]) => groupTabs.some(([id]) => id === tabId));
+  return found ? found[0] : ADMIN_TAB_GROUPS[0][0];
+}
+
+function AdminView({ data, reload, refreshAll, user, selectedMatchId, setSelectedMatchId, setToast, askConfirm, forceControlTabSignal }) {
   const isStatsOnly = user?.role === "stats_admin";
   const tabs = isStatsOnly
     ? [["results", "תוצאות"], ["audit", "לוג"]]
-    : [["fixtures", "מחזורים"], ["control", "בקרה"], ["players", "שחקנים"], ["registration", "הרשמה"], ["teams", "מגרשים וקבוצות"], ["results", "תוצאות"], ["settings", "הגדרות"], ["audit", "לוג"]];
+    : ADMIN_TAB_GROUPS.flatMap(([, , , groupTabs]) => groupTabs);
   // Mirrors the top-level view's own localStorage persistence (see `view` in
   // App) so a refresh lands back on the same admin sub-tab instead of always
   // resetting to "בקרה"/"תוצאות".
@@ -1989,6 +2595,7 @@ function AdminView({ data, reload, refreshAll, user, selectedMatchId, setSelecte
     const stored = localStorage.getItem("badat:admin-tab");
     return stored && tabs.some(([id]) => id === stored) ? stored : (isStatsOnly ? "results" : "control");
   });
+  const activeGroup = isStatsOnly ? null : groupForTab(tab);
   useEffect(() => {
     localStorage.setItem("badat:admin-tab", tab);
   }, [tab]);
@@ -1996,6 +2603,13 @@ function AdminView({ data, reload, refreshAll, user, selectedMatchId, setSelecte
     if (!tabs.some(([id]) => id === tab)) setTab(isStatsOnly ? "results" : "control");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isStatsOnly]);
+  // App bumps this when it catches the session going stale (an hour idle)
+  // while this view was already mounted — jump to the control tab just like
+  // a fresh, stale launch would.
+  useEffect(() => {
+    if (forceControlTabSignal) setTab(isStatsOnly ? "results" : "control");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [forceControlTabSignal]);
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [tab]);
@@ -2034,8 +2648,17 @@ function AdminView({ data, reload, refreshAll, user, selectedMatchId, setSelecte
       return payload;
     }
     if (options.after) await options.after(payload);
-    await reload();
-    await refreshAll();
+    // reload()+refreshAll() each refetch a whole heavy bundle (full player
+    // list, audit log, fixtures, subscriptions...) — for an action that
+    // already updates its own optimistic local state and fires rapidly
+    // (e.g. tapping several calendar days in a row), forcing that fetch+parse
+    //+re-render to complete before anything else happens is exactly what
+    // made the tap feel delayed on mobile. skipReload lets the caller trust
+    // its own local state and let the next natural mutate() catch up the rest.
+    if (!options.skipReload) {
+      await reload();
+      await refreshAll();
+    }
     // Auto-save (e.g. editing a player field) shouldn't pop a toast per
     // keystroke's worth of change — only surface success explicitly asked for.
     if (!options.silent) showToast(setToast, options.success || "הפעולה נשמרה", "success");
@@ -2047,10 +2670,27 @@ function AdminView({ data, reload, refreshAll, user, selectedMatchId, setSelecte
     data.understaffedTeams?.length ||
     data.pendingCancellations?.length
   );
+  const visibleTabs = isStatsOnly
+    ? tabs
+    : ADMIN_TAB_GROUPS.find(([id]) => id === activeGroup)[3];
   return (
     <section className="stack admin">
+      {!isStatsOnly && (
+        <nav className="admin-groups">
+          {ADMIN_TAB_GROUPS.map(([id, label, Icon, groupTabs]) => (
+            <button
+              key={id}
+              className={activeGroup === id ? "active" : ""}
+              onClick={() => setTab(groupTabs[0][0])}
+            >
+              <Icon size={16} />
+              <span>{label}</span>
+            </button>
+          ))}
+        </nav>
+      )}
       <nav className="admin-tabs">
-        {tabs.map(([id, label]) => {
+        {visibleTabs.map(([id, label]) => {
           const Icon = ADMIN_TAB_ICONS[id];
           return (
             <button key={id} className={tab === id ? "active" : ""} onClick={() => setTab(id)}>
@@ -2081,10 +2721,19 @@ function AdminView({ data, reload, refreshAll, user, selectedMatchId, setSelecte
         </>
       )}
       {/* On the teams tab, AdminTeams shows the fixture name in its own
-          toolbar instead of this card. */}
-      {tab !== "teams" && <FixtureContext bundle={bundle} />}
+          toolbar instead of this card. The subscription tab isn't about any
+          one fixture at all. */}
+      {tab !== "teams" && tab !== "subscription" && tab !== "notifications" && <FixtureContext bundle={bundle} />}
       {tab === "fixtures" && <AdminFixtures fixtures={data.fixtures || []} selectedMatchId={selectedMatchId} setSelectedMatchId={setSelectedMatchId} mutate={mutate} />}
-      {tab === "control" && <AdminControl bundle={bundle} mutate={mutate} />}
+      {tab === "control" && (
+        <AdminControl
+          bundle={bundle}
+          mutate={mutate}
+          pendingPaymentsCount={data.pendingPayments?.length || 0}
+          pendingJoinRequestsCount={data.pendingJoinRequests?.length || 0}
+          onGoToTab={setTab}
+        />
+      )}
       {tab === "settings" && (
         <AdminSettings
           mutate={mutate}
@@ -2097,6 +2746,8 @@ function AdminView({ data, reload, refreshAll, user, selectedMatchId, setSelecte
       {tab === "players" && <AdminPlayers players={data.players} mutate={mutate} bundle={bundle} user={user} weights={rankWeights} />}
       {tab === "registration" && <AdminRegistration bundle={bundle} players={data.players} mutate={mutate} user={user} weights={rankWeights} />}
       {tab === "teams" && <AdminTeams bundle={bundle} players={data.players} mutate={mutate} weights={rankWeights} />}
+      {tab === "subscription" && <AdminSubscription data={data} mutate={mutate} setToast={setToast} />}
+      {tab === "notifications" && <AdminNotifications data={data} mutate={mutate} setToast={setToast} />}
       {tab === "results" && <AdminResults bundle={bundle} players={data.players} mutate={mutate} />}
       {tab === "audit" && <AuditLog rows={data.audit} />}
     </section>
@@ -2396,11 +3047,205 @@ const MATCH_STATES = [
   ["stats_published", "סטטיסטיקות פורסמו", "לפרסם את הסטטיסטיקות?", "כל השחקנים יראו את התוצאות, הטבלה והמצטיינים.", "publish"]
 ];
 
+// The same fixture flow, as the five steps a player actually lives through.
+// Shared by the player's home/lineups/results/stats pages and the admin's
+// control tab, so both sides always see the round in the same shape — and
+// a page with nothing to show yet says where the round stands instead.
+const ROUND_STEPS = ["הרשמה", "שיבוץ", "הרכבים", "משחק", "תוצאות"];
+
+// Index of the step in progress; earlier steps read as done. Published
+// lineups mean the lineup step is done and the game is next; 5 = all done.
+const ROUND_STEP_FOR_STATUS = { draft: 0, teams_draft: 1, teams_published: 3, finished: 4, stats_published: 5 };
+
+const ROUND_CAPTIONS = {
+  draft: "שלב ההרשמה. אחרי שתיסגר, האדמין יבנה את הקבוצות.",
+  teams_draft: "האדמין בונה עכשיו את הקבוצות. כשההרכבים יתפרסמו יופיעו כאן המגרש, צבע הקבוצה והחברים שלך.",
+  teams_published: "ההרכבים פורסמו. נתראה במגרש.",
+  finished: "המשחק הסתיים. התוצאות והטבלה יופיעו אחרי שהאדמין יפרסם אותן.",
+  stats_published: "התוצאות פורסמו ואפשר לראות אותן בלשונית סטטיסטיקות."
+};
+
+function RoundTimeline({ status }) {
+  const current = ROUND_STEP_FOR_STATUS[status] ?? 0;
+  return (
+    <ol className="round-timeline" aria-label="שלבי המחזור">
+      {ROUND_STEPS.map((label, index) => {
+        const state = index < current ? "done" : index === current ? "now" : "todo";
+        return (
+          <li key={label} className={`round-step ${state}`} aria-current={state === "now" ? "step" : undefined}>
+            <span className="round-dot" aria-hidden="true">{state === "done" && <Check size={12} strokeWidth={3} />}</span>
+            <span className="round-label">{label}</span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+function RoundCard({ status, eyebrow = "המחזור עכשיו", caption }) {
+  return (
+    <article className="glass round-card">
+      <p className="eyebrow">{eyebrow}</p>
+      <RoundTimeline status={status} />
+      <p className="muted">{caption || ROUND_CAPTIONS[status] || ROUND_CAPTIONS.draft}</p>
+    </article>
+  );
+}
+
 // The two registration audiences, each an independent switch on the match.
 const REGISTRATION_AUDIENCES = [
   ["members_can_register", "מנויים", "מנויים יוכלו להירשם למחזור.", "ההרשמה תיסגר בפני מנויים. מי שכבר נרשם יישאר ברשימה."],
   ["one_timers_can_register", "חד־פעמיים", "שחקנים חד־פעמיים יוכלו להירשם ויתבקשו לשלם.", "ההרשמה תיסגר בפני חד־פעמיים. מי שכבר נרשם יישאר ברשימה."]
 ];
+
+const HEBREW_WEEKDAYS = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
+const HEBREW_MONTH_NAMES = [
+  "ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני",
+  "יולי", "אוגוסט", "ספטמבר", "אוקטובר", "נובמבר", "דצמבר"
+];
+
+function monthLabel(year, month) {
+  return `${HEBREW_MONTH_NAMES[month - 1]} ${year}`;
+}
+
+// One Sunday-first grid for a single calendar month, used both as the
+// admin's editable day picker and (read-only) as the player-facing "which
+// dates" display. Pure UTC calendar math, no timezone — matches the
+// identical math the server uses for match_dates (see sundaysInMonth in
+// server/index.js), so what's toggled here is exactly what gets stored.
+function MonthCalendarGrid({ year, month, markedDates, onToggle, readOnly }) {
+  const marked = useMemo(() => new Set(markedDates || []), [markedDates]);
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const firstWeekday = new Date(Date.UTC(year, month - 1, 1)).getUTCDay();
+  const cells = [];
+  for (let i = 0; i < firstWeekday; i++) cells.push(null);
+  for (let day = 1; day <= daysInMonth; day++) cells.push(day);
+
+  return (
+    <div className="month-grid">
+      {HEBREW_WEEKDAYS.map((label) => (
+        <span className="month-grid-weekday" key={label}>{label}</span>
+      ))}
+      {cells.map((day, index) => {
+        if (day === null) return <span className="month-grid-day empty" key={`empty-${index}`} aria-hidden="true" />;
+        const iso = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+        const isMarked = marked.has(iso);
+        return (
+          <button
+            type="button"
+            key={iso}
+            className={`month-grid-day${isMarked ? " marked" : ""}`}
+            disabled={readOnly}
+            aria-pressed={isMarked}
+            onClick={() => onToggle?.(iso)}
+          >
+            {day}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// wa.me needs digits-only E.164 with no leading '+'. Reuses the client's own
+// phone-parsing import rather than duplicating server/index.js's
+// normalizeIsraeliMobile, which lives in a separate deployable.
+function whatsAppLink(phone, text) {
+  const parsed = parsePhoneNumberFromString(String(phone || ""), "IL");
+  const digits = parsed?.isValid() ? parsed.number.replace("+", "") : String(phone || "").replace(/\D/g, "");
+  if (!digits) return null;
+  return `https://wa.me/${digits}?text=${encodeURIComponent(text)}`;
+}
+
+// ---- Push notification opt-in ----
+// A VAPID public key is just a public key — safe to ship in the bundle
+// (mirrors how VITE_API_URL is already baked in at build time).
+const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || "";
+
+// applicationServerKey wants raw bytes, not the base64url string the VAPID
+// key comes as — this is the standard conversion every Web Push guide uses.
+function urlBase64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(base64);
+  return Uint8Array.from([...raw].map((char) => char.charCodeAt(0)));
+}
+
+function pushSupported() {
+  return "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+}
+
+async function registerServiceWorker() {
+  if (!("serviceWorker" in navigator)) return null;
+  try {
+    return await navigator.serviceWorker.register("/sw.js");
+  } catch {
+    return null;
+  }
+}
+
+// Registering the service worker alone never prompts for anything — only
+// Notification.requestPermission()/pushManager.subscribe() below do, so this
+// whole flow only ever runs from an explicit button tap (a real user
+// gesture, which iOS in particular requires).
+// `silent` is for the unattended auto-attempt on page load (see
+// PushNotificationPrompt) — a browser that requires a real user gesture
+// (iOS Safari in particular) just quietly no-ops requestPermission()
+// instead of throwing, which would otherwise surface a confusing "not
+// approved" toast for a prompt the player never actually saw.
+async function enablePushNotifications(player, setToast, silent = false) {
+  const notify = (message, type) => { if (!silent) showToast(setToast, message, type); };
+  if (!pushSupported()) {
+    notify("המכשיר הזה לא תומך בהתראות — ב-iPhone יש להוסיף קודם את האפליקציה למסך הבית", "error");
+    return false;
+  }
+  const registration = await registerServiceWorker();
+  if (!registration) {
+    notify("הפעלת ההתראות נכשלה", "error");
+    return false;
+  }
+  const permission = await Notification.requestPermission();
+  if (permission !== "granted") {
+    notify("לא אושרה הרשאה להתראות", "error");
+    return false;
+  }
+  try {
+    const subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+    });
+    await fetch(`${API}/api/push/subscribe`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders(player) },
+      body: JSON.stringify({ playerId: player.id, subscription: subscription.toJSON() })
+    });
+    notify("התראות הופעלו", "success");
+    return true;
+  } catch {
+    notify("הפעלת ההתראות נכשלה", "error");
+    return false;
+  }
+}
+
+async function disablePushNotifications(setToast) {
+  if (!pushSupported()) return false;
+  const registration = await navigator.serviceWorker.getRegistration("/sw.js");
+  const subscription = await registration?.pushManager.getSubscription();
+  if (!subscription) return true;
+  const endpoint = subscription.endpoint;
+  await subscription.unsubscribe();
+  await fetch(`${API}/api/push/unsubscribe`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ endpoint })
+  });
+  // A deliberate turn-off is a fresh decision, not the earlier "not now" —
+  // let PushNotificationPrompt offer to re-enable on the next visit instead
+  // of staying permanently silenced by an unrelated old dismissal.
+  localStorage.removeItem("badat:push-prompt-dismissed");
+  showToast(setToast, "התראות כובו", "success");
+  return true;
+}
 
 // A one-click way for an admin to invite new players: the link carries the
 // org's join code, so whoever opens it lands on a signup form that never
@@ -2720,6 +3565,28 @@ function redistributeRankWeights(current, changedKey, rawValue) {
   return next;
 }
 
+// A native <input type="range"> jumps its value straight to wherever the
+// track is pressed — fine for a one-off adjustment, but for a slider that
+// also sits on a page people scroll past, any tap near it (not just a real
+// drag of the thumb) silently changes a value. This lets only the visible
+// thumb itself be grabbed: a pointerdown anywhere else on the track is
+// cancelled outright, so nothing moves and no drag starts. Scoped to the
+// rank-weight sliders specifically, not every range input in the app (the
+// avatar-crop zoom slider, for one, is fine with the normal behavior).
+function guardRangeThumb(event) {
+  const input = event.currentTarget;
+  const rect = input.getBoundingClientRect();
+  const min = Number(input.min) || 0;
+  const max = Number(input.max) || 100;
+  const ratio = (Number(input.value) - min) / (max - min);
+  const thumbSize = 18; // matches ::-webkit-slider-thumb / ::-moz-range-thumb
+  const usable = rect.width - thumbSize;
+  const isRtl = getComputedStyle(input).direction === "rtl";
+  const thumbCenterX = rect.left + thumbSize / 2 + (isRtl ? usable * (1 - ratio) : usable * ratio);
+  const hitRadius = 22; // generous enough for a fingertip, still excludes "elsewhere on the track"
+  if (Math.abs(event.clientX - thumbCenterX) > hitRadius) event.preventDefault();
+}
+
 // Three linked sliders, not three independent fields — moving one always
 // redistributes the other two so the trio keeps summing to 100%, on both
 // desktop and mobile alike (same input, same layout, just a narrower card).
@@ -2729,6 +3596,10 @@ function RankWeightsSettings({ settings, mutate }) {
   const saved = rankWeightsFromSettings(settings);
   const [draft, setDraft] = useState(saved);
   const [dirty, setDirty] = useState(false);
+  // Locked by default — these sliders sit in a normal scrolling settings
+  // page, and a touch that's really just trying to scroll past them can
+  // drag a native range input instead. An explicit unlock avoids that.
+  const [locked, setLocked] = useState(true);
 
   // Picks up a change saved from elsewhere (another admin, another tab) —
   // but only while this card has no pending edit of its own to protect.
@@ -2770,12 +3641,24 @@ function RankWeightsSettings({ settings, mutate }) {
           <p className="eyebrow">הגדרות ארגון</p>
           <h2>משקל דירוג שחקנים</h2>
         </div>
-        <button onClick={resetToDefault}>איפוס לברירת מחדל</button>
+        <button onClick={resetToDefault} disabled={locked}>איפוס לברירת מחדל</button>
       </div>
       <InfoNote>
-        קובע איך התקפה, הגנה וכושר מרכיבים את הדירוג הכולל של שחקן ואת חוזק הקבוצה בבנאי הקבוצות. שלושת הערכים תמיד מסתכמים ל-100%ֿ — הזזת סליידר אחד מתאימה את השניים האחרים באופן יחסי.
+        קובע איך התקפה, הגנה וכושר מרכיבים את הדירוג הכולל של שחקן ואת חוזק הקבוצה בבנאי הקבוצות. שלושת הערכים תמיד מסתכמים ל-100%ֿ — הזזת סליידר אחד מתאימה את השניים האחרים באופן יחסי. הסליידרים נעולים כברירת מחדל כדי שגלילה בעמוד לא תזיז אותם בטעות — יש לפתוח לעריכה כדי לשנות.
       </InfoNote>
-      <div className="rank-weights">
+      <div className="audience-toggles">
+        <button
+          type="button"
+          className={`audience-toggle ${!locked ? "on" : ""}`}
+          aria-pressed={!locked}
+          onClick={() => setLocked((value) => !value)}
+        >
+          <span className="flow-label">עריכת המשקלים</span>
+          <span className="flow-hint">{locked ? "נעול" : "פתוח"}</span>
+          <span className="switch-track" aria-hidden="true" />
+        </button>
+      </div>
+      <div className={`rank-weights${locked ? " locked" : ""}`}>
         {RANK_WEIGHT_FIELDS.map(([key, label]) => (
           <div className="rank-weight-row" key={key}>
             <div className="rank-weight-label">
@@ -2788,6 +3671,8 @@ function RankWeightsSettings({ settings, mutate }) {
               max="100"
               value={draft[key]}
               aria-label={label}
+              disabled={locked}
+              onPointerDown={guardRangeThumb}
               onChange={(event) => onSlide(key, Number(event.target.value))}
               onMouseUp={commit}
               onTouchEnd={commit}
@@ -2847,76 +3732,837 @@ function AdminSettings({ mutate, settings, organization, registrationQuestions, 
 // Everything about the currently selected fixture: its status flow,
 // registration audiences, and its own editable fields. Org-wide preferences
 // live in AdminSettings instead — see the "הגדרות" tab.
-function AdminControl({ bundle, mutate }) {
+// The numbers an admin needs at a glance: how many are actually in for this
+// fixture, what's still waiting on them (payments, join requests) across the
+// whole org, and how many pitches are running. Reuses the same Metric/
+// stat-grid tiles as everywhere else numbers are shown in this app.
+function AdminControlKpis({ bundle, pendingPaymentsCount, pendingJoinRequestsCount }) {
+  const registeredCount = bundle.registrations.filter(
+    (row) => !["cancelled", "not_attending"].includes(row.status)
+  ).length;
+  return (
+    <article className="glass kpi-card">
+      <p className="eyebrow">מדדים מרכזיים</p>
+      <div className="stat-grid">
+        <Metric icon={Users} label="שחקנים רשומים" value={registeredCount} />
+        <Metric icon={Wallet} label="תשלומים ממתינים" value={pendingPaymentsCount} />
+        <Metric icon={Trophy} label="מגרשים פתוחים" value={bundle.pitches.length} />
+        <Metric icon={UserPlus} label="בקשות הצטרפות" value={pendingJoinRequestsCount} />
+      </div>
+    </article>
+  );
+}
+
+// Compact: the fixture's state is glanced at, not browsed — a badge for the
+// current state and a menu to jump straight to any other one, instead of
+// spelling out every state in a row.
+function FixtureStatusCard({ match, mutate }) {
+  const [open, setOpen] = useState(false);
+  const current = MATCH_STATES.find(([status]) => status === match.status);
+
+  return (
+    <article className="glass fixture-status-card">
+      <div className="flow-head">
+        <div>
+          <p className="eyebrow">מצב המחזור</p>
+          <h2>{current?.[1] || "טיוטה"}</h2>
+        </div>
+        <button type="button" className="status-change-btn" onClick={() => setOpen(true)}>
+          שינוי מצב <ChevronLeft size={14} />
+        </button>
+      </div>
+      {open && <FixtureStatusSheet match={match} mutate={mutate} onClose={() => setOpen(false)} />}
+    </article>
+  );
+}
+
+// One icon per state, purely to give the sheet's rows a quick visual anchor
+// (the label still does the actual explaining).
+const MATCH_STATE_ICONS = {
+  draft: Pencil,
+  teams_draft: Users,
+  teams_published: Trophy,
+  finished: CircleCheck,
+  stats_published: Sparkles
+};
+
+// A bottom sheet on mobile (full-width, slides up, thumb-sized rows) and a
+// centered card on desktop — replaces a cramped dropdown with something that
+// reads as a deliberate, modern "pick one" screen instead of a browser menu.
+function FixtureStatusSheet({ match, mutate, onClose }) {
+  useBackButtonClose(onClose);
+
+  useEffect(() => {
+    const scrollY = window.scrollY;
+    const body = document.body;
+    body.classList.add("modal-open");
+    body.style.top = `-${scrollY}px`;
+    return () => {
+      body.classList.remove("modal-open");
+      body.style.top = "";
+      window.scrollTo(0, scrollY);
+    };
+  }, []);
+
+  useEffect(() => {
+    function onKey(event) { if (event.key === "Escape") onClose(); }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return createPortal(
+    <div
+      className="modal-backdrop"
+      onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
+    >
+      <article className="glass status-sheet" role="dialog" aria-modal="true" aria-labelledby="status-sheet-title">
+        <span className="status-sheet-grab" aria-hidden="true" />
+        <div className="status-sheet-head">
+          <h2 id="status-sheet-title">מצב המחזור</h2>
+          <button className="modal-close" aria-label="סגירה" onClick={onClose}><X size={18} /></button>
+        </div>
+        {MATCH_STATES.map(([status, label, confirmTitle, confirmText, tone]) => {
+          const isCurrent = status === match.status;
+          const Icon = MATCH_STATE_ICONS[status] || Check;
+          return (
+            <button
+              key={status}
+              type="button"
+              className={`status-option ${isCurrent ? "current" : ""}`}
+              disabled={isCurrent}
+              aria-current={isCurrent ? "true" : undefined}
+              onClick={() => {
+                onClose();
+                mutate(`/api/admin/matches/${match.id}`, {
+                  body: { status },
+                  confirm: confirmTitle,
+                  confirmText,
+                  confirmTone: tone,
+                  success: "מצב המחזור עודכן"
+                });
+              }}
+            >
+              <span className="status-option-icon"><Icon size={18} /></span>
+              <span className="status-option-text">
+                <strong>{label}</strong>
+                <span>{isCurrent ? "המצב הנוכחי" : "עבור למצב זה"}</span>
+              </span>
+              {isCurrent && <Check size={18} className="status-option-check" aria-hidden="true" />}
+            </button>
+          );
+        })}
+      </article>
+    </div>,
+    document.body
+  );
+}
+
+// Independent of the fixture state above: who can register, open whenever.
+function RegistrationStatusCard({ match, mutate }) {
+  return (
+    <article className="glass registration-status-card">
+      <div className="flow-head">
+        <div>
+          <p className="eyebrow">מי יכול להירשם</p>
+          <h2>{registrationModeLabel(match)}</h2>
+        </div>
+      </div>
+      <div className="audience-toggles">
+        {REGISTRATION_AUDIENCES.map(([field, label, openText, closeText]) => {
+          const isOpen = Boolean(match[field]);
+          return (
+            <button
+              key={field}
+              className={`audience-toggle ${isOpen ? "on" : ""}`}
+              aria-pressed={isOpen}
+              onClick={() => mutate(`/api/admin/matches/${match.id}`, {
+                body: { [field]: !isOpen },
+                confirm: isOpen ? `לסגור את ההרשמה ל${label}?` : `לפתוח את ההרשמה ל${label}?`,
+                confirmText: isOpen ? closeText : openText,
+                confirmTone: isOpen ? "warning" : "default",
+                success: "מצב ההרשמה עודכן"
+              })}
+            >
+              <span className="flow-label">{label}</span>
+              <span className="flow-hint">{isOpen ? "פתוח" : "סגור"}</span>
+              <span className="switch-track" aria-hidden="true" />
+            </button>
+          );
+        })}
+      </div>
+    </article>
+  );
+}
+
+// One suggested next move for the round's current state, so the control tab
+// answers "what now?" instead of only listing numbers. Only navigates to
+// the tab where the work happens — every change still goes through that
+// tab's own controls and confirmations.
+function adminNextStep(bundle) {
+  const match = bundle.match;
+  const active = bundle.registrations.filter((row) => !["cancelled", "not_attending"].includes(row.status));
+  const standby = active.filter((row) => row.status === "standby").length;
+  const pitches = bundle.pitches.length;
+  switch (match.status) {
+    case "teams_draft":
+      return pitches === 0
+        ? {
+            title: standby ? `${standby} בסטנדביי ואין עדיין מגרש פתוח` : "אין עדיין מגרש פתוח",
+            text: `פתחו מגרש ובנו קבוצות מתוך ${active.length} הנרשמים.`,
+            action: "למגרשים וקבוצות",
+            tab: "teams"
+          }
+        : {
+            title: `${pitches === 1 ? "מגרש אחד" : `${pitches} מגרשים`} בבנייה`,
+            text: "כשהקבוצות מוכנות, פרסמו את ההרכבים ממצב המחזור למטה.",
+            action: "למגרשים וקבוצות",
+            tab: "teams"
+          };
+    case "teams_published":
+      return { title: "ההרכבים פורסמו", text: "אחרי המשחק, הזינו את התוצאות.", action: "לתוצאות", tab: "results" };
+    case "finished":
+      return { title: "התוצאות מחכות לפרסום", text: "בדקו את התוצאות ופרסמו אותן לשחקנים.", action: "לתוצאות", tab: "results" };
+    case "stats_published":
+      return { title: "המחזור הושלם", text: "אפשר לפתוח את המחזור הבא.", action: "למחזורים", tab: "fixtures" };
+    default:
+      return {
+        title: `${active.length} נרשמו עד עכשיו`,
+        text: "כשההרשמה נסגרת, עוברים לבניית קבוצות.",
+        action: "לרשימת הנרשמים",
+        tab: "registration"
+      };
+  }
+}
+
+function AdminNextStep({ bundle, onGoToTab }) {
+  const step = adminNextStep(bundle);
+  return (
+    <article className="next-step-card">
+      <p className="eyebrow">הצעד הבא</p>
+      <h2>{step.title}</h2>
+      <p className="muted">{step.text}</p>
+      <button type="button" className="primary" onClick={() => onGoToTab(step.tab)}>
+        {step.action} <ChevronLeft size={16} />
+      </button>
+    </article>
+  );
+}
+
+function AdminControl({ bundle, mutate, pendingPaymentsCount, pendingJoinRequestsCount, onGoToTab }) {
   if (!bundle) {
     return <p className="muted">אין מחזור פעיל — יש ליצור מחזור חדש בלשונית "מחזורים"</p>;
   }
   const match = bundle.match;
-  const current = MATCH_STATES.findIndex(([status]) => status === match.status);
   return (
     <>
-      <article className="glass flow-card">
-        <div className="flow-head">
-          <div>
-            <p className="eyebrow">מצב המחזור</p>
-            <h2>{MATCH_STATES[current]?.[1] || "טיוטה"}</h2>
-          </div>
-          <span className="flow-progress">{registrationModeLabel(match)}</span>
+      <article className="glass round-card">
+        <p className="eyebrow">שלבי המחזור</p>
+        <RoundTimeline status={match.status} />
+      </article>
+      <AdminNextStep bundle={bundle} onGoToTab={onGoToTab} />
+      <AdminControlKpis
+        bundle={bundle}
+        pendingPaymentsCount={pendingPaymentsCount}
+        pendingJoinRequestsCount={pendingJoinRequestsCount}
+      />
+      <FixtureStatusCard match={match} mutate={mutate} />
+      <RegistrationStatusCard match={match} mutate={mutate} />
+    </>
+  );
+}
+
+// The month AFTER the current one, computed client-side (the club's own
+// device/timezone) rather than guessed on the server.
+function nextCalendarMonth() {
+  const now = new Date();
+  return now.getMonth() === 11
+    ? { year: now.getFullYear() + 1, month: 1 }
+    : { year: now.getFullYear(), month: now.getMonth() + 2 };
+}
+
+// The monthly subscription billing cycle: admin picks the month's play days
+// and price, players opt in, admin tracks payment manually and marks people
+// paid — see db/migrations/012_monthly_subscriptions.sql for the full
+// rationale. Total/amount-due are never edited directly, only days and
+// price — the total is always their product, computed server-side.
+function AdminSubscription({ data, mutate, setToast }) {
+  const subscription = data.subscription;
+  const { year: nextYear, month: nextMonth } = nextCalendarMonth();
+  const [priceDraft, setPriceDraft] = useState(subscription?.price_per_match ?? 39);
+  // Marking a day PATCHes the server, then mutate() reloads the whole admin
+  // bundle before the response lands — real, but slow enough on a flaky
+  // connection to read as "did that even register?". This mirrors the
+  // server's value locally so a click marks the day instantly; the effect
+  // below resyncs to the authoritative value once the reload completes.
+  const [localDates, setLocalDates] = useState(subscription?.match_dates || []);
+
+  useEffect(() => {
+    setPriceDraft(subscription?.price_per_match ?? 39);
+  }, [subscription?.id, subscription?.price_per_match]);
+
+  useEffect(() => {
+    setLocalDates(subscription?.match_dates || []);
+  }, [subscription?.id, subscription?.match_dates]);
+
+  function createDraft() {
+    mutate("/api/admin/subscriptions", {
+      method: "POST",
+      body: { year: nextYear, month: nextMonth },
+      success: "טיוטת המנוי נוצרה"
+    });
+  }
+
+  function toggleDay(iso) {
+    if (!subscription) return;
+    const has = localDates.includes(iso);
+    const nextDates = has ? localDates.filter((date) => date !== iso) : [...localDates, iso].sort();
+    setLocalDates(nextDates);
+    // The tap already marked the day (localDates, above) — persist it in the
+    // background without forcing a full bundle reload first. A day toggle
+    // trusts its own optimistic state; the next mutate() that DOES reload
+    // (price save, publish, ...) catches everything up.
+    mutate(`/api/admin/subscriptions/${subscription.id}`, {
+      method: "PATCH",
+      body: { matchDates: nextDates },
+      silent: true,
+      skipReload: true
+    });
+  }
+
+  function savePrice() {
+    const next = Number(priceDraft);
+    if (!subscription || !Number.isFinite(next) || next === subscription.price_per_match) return;
+    mutate(`/api/admin/subscriptions/${subscription.id}`, {
+      method: "PATCH",
+      body: { pricePerMatch: next },
+      silent: true
+    });
+  }
+
+  function publish() {
+    mutate(`/api/admin/subscriptions/${subscription.id}/publish`, {
+      method: "POST",
+      confirm: "לפרסם את המנוי לשחקנים?",
+      confirmText: "השחקנים יראו את התאריכים והמחיר ויוכלו להצטרף.",
+      silent: true,
+      after: (payload) => {
+        showToast(
+          setToast,
+          payload?.resetCount > 0
+            ? `המנוי פורסם — ${payload.resetCount} מנויים קודמים שלא שילמו הוסרו`
+            : "המנוי פורסם",
+          "success"
+        );
+      }
+    });
+  }
+
+  function unpublish() {
+    mutate(`/api/admin/subscriptions/${subscription.id}/unpublish`, {
+      method: "POST",
+      confirm: "להסתיר את המנוי מהשחקנים?",
+      confirmText: "השחקנים לא יראו יותר את המנוי ולא יוכלו להצטרף. הרשמות ותשלומים קיימים יישארו כמו שהם — אפשר לפרסם שוב בהמשך.",
+      confirmTone: "warning",
+      success: "המנוי הוסתר מהשחקנים"
+    });
+  }
+
+  function markPaid(signup, paid) {
+    mutate(`/api/admin/subscriptions/${subscription.id}/signups/${signup.id}`, {
+      method: "PATCH",
+      body: { paid },
+      success: paid ? "סומן ששולם" : "הסימון בוטל"
+    });
+  }
+
+  function removeSignup(signup) {
+    mutate(`/api/admin/subscriptions/${subscription.id}/signups/${signup.id}`, {
+      method: "DELETE",
+      confirm: signup.paid ? "השחקן כבר סומן כשולם — להסיר בכל זאת?" : "להסיר את ההרשמה?",
+      confirmTone: signup.paid ? "danger" : "default",
+      success: "ההרשמה הוסרה"
+    });
+  }
+
+  if (!subscription) {
+    return (
+      <article className="glass">
+        <p className="eyebrow">מנוי חודשי</p>
+        <h2>אין מנוי פתוח כרגע</h2>
+        <p className="muted">יצירת מנוי חדש תסמן אוטומטית את כל ימי ראשון של החודש.</p>
+        <button className="primary" onClick={createDraft}>צור מנוי ל{monthLabel(nextYear, nextMonth)}</button>
+      </article>
+    );
+  }
+
+  const dayCount = localDates.length;
+  const livePrice = Number(priceDraft);
+  const liveTotal = dayCount * (Number.isFinite(livePrice) ? livePrice : subscription.price_per_match);
+
+  return (
+    <>
+      {data.subscriptions?.length > 1 && (
+        <div className="subscription-history">
+          {data.subscriptions.map((row) => (
+            <span className="pill" key={row.id}>
+              {monthLabel(row.year, row.month)} · {row.status === "open" ? "פורסם" : "טיוטה"}
+            </span>
+          ))}
         </div>
-        {/* A set of states, not a numbered pipeline — pick any one directly. */}
-        <ul className="state-list">
-          {MATCH_STATES.map(([status, label, confirmTitle, confirmText, tone]) => {
-            const isCurrent = status === match.status;
-            return (
-              <li className={`state-row ${isCurrent ? "current" : ""}`} key={status}>
-                <button
-                  className="state-option"
-                  disabled={isCurrent}
-                  aria-current={isCurrent ? "true" : undefined}
-                  onClick={() => mutate(`/api/admin/matches/${match.id}`, {
-                    body: { status },
-                    confirm: confirmTitle,
-                    confirmText,
-                    confirmTone: tone,
-                    success: "מצב המחזור עודכן"
-                  })}
-                >
-                  <span className="state-dot" aria-hidden="true">
-                    {isCurrent ? <Check size={14} /> : null}
-                  </span>
-                  <span className="flow-label">{label}</span>
-                  <span className="flow-hint">{isCurrent ? "המצב הנוכחי" : "עבור למצב"}</span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-        {/* Independent of the state above: open either audience whenever you like. */}
-        <div className="audience-toggles">
-          <p className="eyebrow">מי יכול להירשם</p>
-          {REGISTRATION_AUDIENCES.map(([field, label, openText, closeText]) => {
-            const isOpen = Boolean(match[field]);
-            return (
-              <button
-                key={field}
-                className={`audience-toggle ${isOpen ? "on" : ""}`}
-                aria-pressed={isOpen}
-                onClick={() => mutate(`/api/admin/matches/${match.id}`, {
-                  body: { [field]: !isOpen },
-                  confirm: isOpen ? `לסגור את ההרשמה ל${label}?` : `לפתוח את ההרשמה ל${label}?`,
-                  confirmText: isOpen ? closeText : openText,
-                  confirmTone: isOpen ? "warning" : "default",
-                  success: "מצב ההרשמה עודכן"
-                })}
-              >
-                <span className="flow-label">{label}</span>
-                <span className="flow-hint">{isOpen ? "פתוח" : "סגור"}</span>
-                <span className="switch-track" aria-hidden="true" />
-              </button>
-            );
-          })}
+      )}
+      <article className="glass">
+        <div className="section-head">
+          <div>
+            <p className="eyebrow">מנוי חודשי</p>
+            <h2>{monthLabel(subscription.year, subscription.month)}</h2>
+          </div>
+          <span className="pill">{subscription.status === "open" ? "פורסם לשחקנים" : "טיוטה"}</span>
+        </div>
+
+        <MonthCalendarGrid
+          year={subscription.year}
+          month={subscription.month}
+          markedDates={localDates}
+          onToggle={toggleDay}
+        />
+
+        <div className="form-grid">
+          <Field label="מחיר למשחק">
+            <input
+              type="number"
+              min="0"
+              value={priceDraft}
+              onChange={(event) => setPriceDraft(event.target.value)}
+              onBlur={savePrice}
+            />
+          </Field>
+        </div>
+
+        <div className="stat-grid">
+          <Metric icon={CalendarDays} label="ימי משחק" value={dayCount} />
+          <Metric icon={Wallet} label="סה״כ לתשלום" value={`${liveTotal}₪`} />
+        </div>
+
+        {subscription.status === "draft" && (
+          <button className="primary" onClick={publish} disabled={dayCount === 0}>פרסום לשחקנים</button>
+        )}
+        {subscription.status === "open" && (
+          <button className="danger" onClick={unpublish}>הסתרת המנוי מהשחקנים</button>
+        )}
+      </article>
+
+      <article className="glass">
+        <p className="eyebrow">מצטרפים ({subscription.signups.length})</p>
+        {!subscription.signups.length && <p className="muted">עדיין אין הרשמות.</p>}
+        {subscription.signups.length > 0 && (
+          <div className="admin-list">
+            {subscription.signups.map((signup) => {
+              const waText = `היי ${String(signup.player_name).split(" ")[0]}, המנוי לחודש ${monthLabel(subscription.year, subscription.month)} מוכן. הסכום לתשלום: ${signup.amount_due}₪ 🙏`;
+              const link = whatsAppLink(signup.player_phone, waText);
+              return (
+                <div className="admin-list-row subscriber-row" key={signup.id}>
+                  <img src={signup.player_avatar_url} alt="" />
+                  <div>
+                    <strong>{signup.player_name}</strong>
+                    <small>{signup.paid ? `שולם · ${signup.amount_due}₪` : `לתשלום: ${signup.amount_due}₪`}</small>
+                  </div>
+                  <div className="row-actions">
+                    <button className={signup.paid ? "ghost" : "primary"} onClick={() => markPaid(signup, !signup.paid)}>
+                      {signup.paid ? "בטל סימון" : "סמן כשולם"}
+                    </button>
+                    {link && (
+                      <button className="ghost" onClick={() => window.open(link, "_blank", "noopener,noreferrer")}>
+                        <MessageCircle size={15} /> וואטסאפ
+                      </button>
+                    )}
+                    <button className="danger" onClick={() => removeSignup(signup)}>הסר</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </article>
+    </>
+  );
+}
+
+// Starting points, not constraints — picking one just pre-fills the fields
+// below, every one of which stays freely editable afterward.
+const NOTIFICATION_TEMPLATES = [
+  { id: "reg_members", icon: Crown, label: "הרשמה נפתחה למנויים", title: "ההרשמה למחזור הבא נפתחה", body: "ההרשמה למחזור הבא נפתחה למנויים — תירשמו עכשיו!", audience: "members" },
+  { id: "reg_all", icon: Users, label: "הרשמה נפתחה לכולם", title: "ההרשמה למחזור הבא נפתחה לכולם", body: "ההרשמה למחזור הבא נפתחה גם לשחקנים חד־פעמיים — מספר המקומות מוגבל.", audience: "all" },
+  { id: "squad_published", icon: Trophy, label: "הרכבים פורסמו", title: "ההרכבים פורסמו", body: "ההרכבים למחזור הקרוב פורסמו — בואו לבדוק באיזה מגרש אתם משחקים.", audience: "match" },
+  { id: "roster_published", icon: ClipboardList, label: "רשימת נרשמים פורסמה", title: "רשימת הנרשמים פורסמה", body: "רשימת הנרשמים למחזור הקרוב פורסמה — בואו לבדוק מי מגיע.", audience: "match" },
+  { id: "payment_reminder", icon: Wallet, label: "תזכורת תשלום", title: "תזכורת תשלום", body: "תזכורת ידידותית להשלים את התשלום למחזור הקרוב 🙏", audience: "one_timers" },
+  { id: "blank", icon: Pencil, label: "הודעה חופשית", title: "", body: "", audience: "all" }
+];
+
+const NOTIFICATION_AUDIENCES = [
+  ["all", "כולם"],
+  ["members", "מנויים"],
+  ["one_timers", "חד־פעמיים"],
+  ["match", "רשומים למחזור"],
+  ["custom", "רשימה מותאמת"],
+  ["player", "שחקן בודד"]
+];
+
+function AdminNotifications({ data, mutate, setToast }) {
+  const [templateId, setTemplateId] = useState(null);
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const [audienceKind, setAudienceKind] = useState("all");
+  // Once the admin has explicitly picked an audience, a template chosen
+  // afterward must not silently swap it out from under them — this only
+  // gates the template's own suggested-audience convenience, not the
+  // audience picker itself (which always applies immediately either way).
+  const [audienceTouched, setAudienceTouched] = useState(false);
+  const [matchId, setMatchId] = useState("");
+  const [playerSearch, setPlayerSearch] = useState("");
+  const [selectedPlayerIds, setSelectedPlayerIds] = useState([]);
+  const [preview, setPreview] = useState({ count: 0, sample: [] });
+  // "now" (existing immediate send) vs "scheduled" (server-side timer —
+  // see processScheduledNotifications in server/index.js). Recurring is
+  // just a scheduled send with a repeat interval attached.
+  const [sendMode, setSendMode] = useState("now");
+  const [sendAt, setSendAt] = useState("");
+  const [repeatEnabled, setRepeatEnabled] = useState(false);
+  const [repeatValue, setRepeatValue] = useState(1);
+  const [repeatUnit, setRepeatUnit] = useState("days");
+
+  // "player" is a friendlier UI label over the same 'custom' audience with
+  // exactly one id — the server only knows about 'custom'.
+  const audienceType = audienceKind === "player" ? "custom" : audienceKind;
+  const audienceParams = useMemo(() => {
+    if (audienceType === "match") return { matchId };
+    if (audienceType === "custom") return { playerIds: selectedPlayerIds };
+    return {};
+  }, [audienceType, matchId, selectedPlayerIds]);
+
+  const audienceLabel = useMemo(() => {
+    if (audienceKind === "match") {
+      const match = data.fixtures?.find((row) => row.id === matchId);
+      return match ? `רשומים ל${match.title}` : "רשומים למחזור";
+    }
+    if (audienceKind === "player") {
+      const found = data.players?.find((row) => row.id === selectedPlayerIds[0]);
+      return found ? found.full_name : "שחקן בודד";
+    }
+    if (audienceKind === "custom") return `רשימה מותאמת (${selectedPlayerIds.length})`;
+    return NOTIFICATION_AUDIENCES.find(([id]) => id === audienceKind)?.[1] || audienceKind;
+  }, [audienceKind, matchId, selectedPlayerIds, data.fixtures, data.players]);
+
+  // Debounced live "who will actually get this" count — the whole point of
+  // a preview endpoint instead of just guessing client-side.
+  useEffect(() => {
+    if (audienceType === "match" && !matchId) { setPreview({ count: 0, sample: [] }); return; }
+    if (audienceType === "custom" && !selectedPlayerIds.length) { setPreview({ count: 0, sample: [] }); return; }
+    const timer = setTimeout(async () => {
+      const payload = await mutate("/api/admin/notifications/preview", {
+        method: "POST",
+        body: { audienceType, audienceParams },
+        silent: true,
+        skipReload: true
+      });
+      if (payload?.count !== undefined) setPreview(payload);
+    }, 300);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [audienceType, matchId, selectedPlayerIds.join(",")]);
+
+  function applyTemplate(template) {
+    setTemplateId(template.id);
+    setTitle(template.title);
+    setBody(template.body);
+    // Only steer the audience for someone who hasn't chosen one yet — once
+    // they have (recipients picked, or any audience pill clicked), a
+    // template is just wording, not a reason to swap out who it goes to.
+    if (!audienceTouched) setAudienceKind(template.audience);
+  }
+
+  function togglePlayer(id) {
+    if (audienceKind === "player") {
+      setSelectedPlayerIds([id]);
+    } else {
+      setSelectedPlayerIds((current) => (current.includes(id) ? current.filter((x) => x !== id) : [...current, id]));
+    }
+  }
+
+  function resetComposer() {
+    setTitle("");
+    setBody("");
+    setTemplateId(null);
+    setSelectedPlayerIds([]);
+    setAudienceTouched(false);
+    setSendMode("now");
+    setSendAt("");
+    setRepeatEnabled(false);
+  }
+
+  function send() {
+    mutate("/api/admin/notifications/send", {
+      method: "POST",
+      body: { audienceType, audienceParams, title, body, audienceLabel },
+      confirm: `לשלוח את ההודעה ל-${preview.count} שחקנים?`,
+      confirmText: "ההודעה תישלח כהתראה למכשירים שהפעילו התראות. מי שלא הפעיל לא יקבל כלום.",
+      silent: true,
+      after: (payload) => {
+        showToast(
+          setToast,
+          payload?.sentCount === undefined
+            ? "ההודעה נשלחה"
+            : payload.failedCount > 0
+              ? `נשלח ל-${payload.sentCount} מתוך ${payload.recipientCount} שחקנים`
+              : `ההודעה נשלחה ל-${payload.sentCount} שחקנים`,
+          "success"
+        );
+        resetComposer();
+      }
+    });
+  }
+
+  function schedule() {
+    const repeatEveryHours = repeatEnabled ? Number(repeatValue) * (repeatUnit === "days" ? 24 : 1) : null;
+    mutate("/api/admin/notifications/schedule", {
+      method: "POST",
+      body: {
+        audienceType,
+        audienceParams,
+        title,
+        body,
+        audienceLabel,
+        sendAt: new Date(sendAt).toISOString(),
+        repeatEveryHours
+      },
+      confirm: repeatEnabled
+        ? `לתזמן הודעה חוזרת ל-${preview.count} שחקנים?`
+        : `לתזמן את ההודעה ל-${preview.count} שחקנים?`,
+      confirmText: repeatEnabled
+        ? `ההודעה תישלח לראשונה ב-${new Date(sendAt).toLocaleString("he-IL")}, ואז כל ${repeatValue} ${repeatUnit === "days" ? "ימים" : "שעות"}.`
+        : `ההודעה תישלח אוטומטית ב-${new Date(sendAt).toLocaleString("he-IL")}.`,
+      success: "התזמון נשמר",
+      after: resetComposer
+    });
+  }
+
+  const needsPlayerPicker = audienceKind === "custom" || audienceKind === "player";
+  const filteredPlayers = useMemo(() => {
+    const needle = playerSearch.trim().toLowerCase();
+    const list = (data.players || []).filter((row) => row.status === "active");
+    if (!needle) return list;
+    return list.filter((row) => String(row.full_name).toLowerCase().includes(needle));
+  }, [data.players, playerSearch]);
+
+  const hasContent = Boolean(title.trim() && body.trim() && preview.count > 0);
+  const canSend = sendMode === "now"
+    ? hasContent
+    : hasContent && Boolean(sendAt) && (!repeatEnabled || Number(repeatValue) > 0);
+
+  return (
+    <>
+      <article className="glass">
+        <p className="eyebrow">הודעה מוכנה מראש</p>
+        <div className="template-grid">
+          {NOTIFICATION_TEMPLATES.map((template) => (
+            <button
+              key={template.id}
+              type="button"
+              className={`template-card${templateId === template.id ? " active" : ""}`}
+              onClick={() => applyTemplate(template)}
+            >
+              <template.icon size={20} />
+              <span>{template.label}</span>
+            </button>
+          ))}
         </div>
       </article>
+
+      <article className="glass">
+        <p className="eyebrow">למי לשלוח</p>
+        <div className="subscription-history">
+          {NOTIFICATION_AUDIENCES.map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              className={`pill audience-pill${audienceKind === id ? " active" : ""}`}
+              onClick={() => { setAudienceKind(id); setAudienceTouched(true); }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {audienceKind === "match" && (
+          <select value={matchId} onChange={(event) => setMatchId(event.target.value)}>
+            <option value="">בחירת מחזור...</option>
+            {(data.fixtures || []).map((fixture) => (
+              <option key={fixture.id} value={fixture.id}>{fixture.title} · {formatDate(fixture.match_date)}</option>
+            ))}
+          </select>
+        )}
+
+        {needsPlayerPicker && (
+          <div className="notif-player-picker">
+            <div className="input-icon-field">
+              <Search size={16} className="input-icon" aria-hidden="true" />
+              <input type="search" placeholder="חיפוש שחקן..." value={playerSearch} onChange={(event) => setPlayerSearch(event.target.value)} />
+            </div>
+            <div className="notif-player-list">
+              {filteredPlayers.map((row) => {
+                const checked = selectedPlayerIds.includes(row.id);
+                return (
+                  <button
+                    key={row.id}
+                    type="button"
+                    className={`notif-player-row${checked ? " checked" : ""}`}
+                    onClick={() => togglePlayer(row.id)}
+                  >
+                    <img src={row.avatar_url} alt="" />
+                    <span>{row.full_name}</span>
+                    {checked && <Check size={16} className="notif-player-check" />}
+                  </button>
+                );
+              })}
+              {!filteredPlayers.length && <p className="muted">לא נמצאו שחקנים</p>}
+            </div>
+          </div>
+        )}
+
+        <div className="notif-preview">
+          <span className="pill">ישלח ל-{preview.count} שחקנים</span>
+          <div className="notif-preview-avatars">
+            {preview.sample.map((row) => (
+              <img key={row.id} src={row.avatar_url} alt={row.full_name} title={row.full_name} />
+            ))}
+          </div>
+        </div>
+      </article>
+
+      <article className="glass">
+        <p className="eyebrow">תוכן ההודעה</p>
+        <div className="form-grid">
+          <Field label="כותרת" wide>
+            <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="לדוגמה: ההרשמה נפתחה" maxLength={60} />
+          </Field>
+          <Field label="תוכן" wide>
+            <textarea rows={3} value={body} onChange={(event) => setBody(event.target.value)} placeholder="הודעה קצרה וברורה..." maxLength={180} />
+          </Field>
+        </div>
+
+        <p className="eyebrow notif-timing-label">מתי לשלוח</p>
+        <div className="subscription-history">
+          <button type="button" className={`pill audience-pill${sendMode === "now" ? " active" : ""}`} onClick={() => setSendMode("now")}>
+            <Send size={13} /> עכשיו
+          </button>
+          <button type="button" className={`pill audience-pill${sendMode === "scheduled" ? " active" : ""}`} onClick={() => setSendMode("scheduled")}>
+            <Clock size={13} /> מתוזמן
+          </button>
+        </div>
+
+        {sendMode === "scheduled" && (
+          <div className="notif-schedule-fields">
+            <Field label="מועד השליחה הראשונה">
+              <input
+                type="datetime-local"
+                value={sendAt}
+                onChange={(event) => setSendAt(event.target.value)}
+              />
+            </Field>
+            <label className="notif-repeat-toggle">
+              <input
+                type="checkbox"
+                checked={repeatEnabled}
+                onChange={(event) => setRepeatEnabled(event.target.checked)}
+              />
+              <RotateCw size={15} />
+              <span>חוזר על עצמו</span>
+            </label>
+            {repeatEnabled && (
+              <div className="notif-repeat-fields">
+                <span>כל</span>
+                <input
+                  type="number"
+                  min="1"
+                  className="notif-repeat-value"
+                  value={repeatValue}
+                  onChange={(event) => setRepeatValue(event.target.value)}
+                />
+                <button type="button" className={`pill audience-pill${repeatUnit === "hours" ? " active" : ""}`} onClick={() => setRepeatUnit("hours")}>שעות</button>
+                <button type="button" className={`pill audience-pill${repeatUnit === "days" ? " active" : ""}`} onClick={() => setRepeatUnit("days")}>ימים</button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {sendMode === "now" ? (
+          <button className="primary notif-send" onClick={send} disabled={!canSend}>
+            <Send size={18} /> שליחת ההודעה
+          </button>
+        ) : (
+          <button className="primary notif-send" onClick={schedule} disabled={!canSend}>
+            <Clock size={18} /> תזמון ההודעה
+          </button>
+        )}
+      </article>
+
+      {data.scheduledNotifications?.length > 0 && (
+        <article className="glass">
+          <p className="eyebrow">מתוזמנות</p>
+          <div className="admin-list">
+            {data.scheduledNotifications.map((row) => (
+              <div className="admin-list-row" key={row.id}>
+                <div>
+                  <strong>{row.title}</strong>
+                  <small>
+                    {row.audience_label} · {row.repeat_every_hours ? `כל ${row.repeat_every_hours % 24 === 0 ? `${row.repeat_every_hours / 24} ימים` : `${row.repeat_every_hours} שעות`}` : "חד פעמי"} · {row.active ? "הבא: " : "מושהה · הבא: "}{new Date(row.next_send_at).toLocaleString("he-IL")}
+                  </small>
+                </div>
+                <div className="row-actions">
+                  <button
+                    className={row.active ? "ghost" : "primary"}
+                    onClick={() => mutate(`/api/admin/notifications/schedule/${row.id}`, {
+                      method: "PATCH",
+                      body: { active: !row.active },
+                      success: row.active ? "התזמון הושהה" : "התזמון חודש"
+                    })}
+                  >
+                    {row.active ? "השהיה" : "חידוש"}
+                  </button>
+                  <button
+                    className="danger"
+                    onClick={() => mutate(`/api/admin/notifications/schedule/${row.id}`, {
+                      method: "DELETE",
+                      confirm: "לבטל את התזמון?",
+                      confirmTone: "danger",
+                      success: "התזמון בוטל"
+                    })}
+                  >
+                    ביטול
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </article>
+      )}
+
+      {data.notifications?.length > 0 && (
+        <article className="glass">
+          <p className="eyebrow">היסטוריית שליחות</p>
+          <div className="admin-list">
+            {data.notifications.map((row) => (
+              <div className="admin-list-row" key={row.id}>
+                <div>
+                  <strong>{row.title}</strong>
+                  <small>
+                    {row.audience_label} · {row.failed_count > 0 ? `נשלח ל-${row.sent_count} מתוך ${row.recipient_count}` : `נשלח ל-${row.sent_count}`} · {formatDate(row.created_at)}
+                  </small>
+                </div>
+              </div>
+            ))}
+          </div>
+        </article>
+      )}
     </>
   );
 }
@@ -4086,10 +5732,13 @@ function AddPlayerToFixture({ bundle, players, mutate }) {
     <article className="glass">
       <p className="eyebrow">הוספת שחקן ידנית מהרשימה המלאה</p>
       <div className="inline-form">
-        <select aria-label="בחירת שחקן" value={playerId} onChange={(event) => setPlayerId(event.target.value)}>
-          <option value="">בחרו שחקן…</option>
-          {candidates.map((player) => <option key={player.id} value={player.id}>{player.full_name}</option>)}
-        </select>
+        {/* Search instead of scrolling a dropdown of every active player. */}
+        <PlayerCombobox
+          groups={[{ label: "", options: candidates }]}
+          placeholder="חיפוש שחקן לפי שם…"
+          value={selected || null}
+          onSelect={(player) => setPlayerId(player?.id || "")}
+        />
         <select aria-label="סטטוס" value={status} onChange={(event) => setStatus(event.target.value)}>
           <option value="attending">מאושר</option>
           <option value="standby">סטנדביי</option>
@@ -4154,6 +5803,7 @@ function AdminRegistrationRow({ registration, number, isFullGroup, mutate, picke
       <div>
         <strong>{registration.player_name}</strong>
         <small>{statusText}</small>
+        <small className="queue-row-timestamp">נרשם ב-{formatDateTimeExact(registration.requested_at)}</small>
       </div>
       <span className={`pill status-pill ${registration.status}`}>{registrationStatusLabel(registration.status)}</span>
       {/* On a phone these collapse to their icons (.btn-text is hidden) so the
@@ -5347,7 +6997,7 @@ function MatchTimer() {
 // squad for the current round hasn't been published yet, or it has but this
 // player isn't on a team in it (the only two reasons the caller renders this
 // instead of the real form).
-function ResultsUnavailableNotice({ squadPublished }) {
+function ResultsUnavailableNotice({ squadPublished, status }) {
   return (
     <section className="stack">
       <article className="glass page-title">
@@ -5356,14 +7006,16 @@ function ResultsUnavailableNotice({ squadPublished }) {
           <h2>אין כרגע מה לתעד</h2>
         </div>
       </article>
-      <article className="glass">
-        <div className="notice">
-          <Bell size={18} />
-          {!squadPublished
-            ? "ההרכבים למחזור הנוכחי עדיין לא פורסמו — תיעוד התוצאות יפתח ברגע שהאדמין יפרסם אותם."
-            : "אינך משובץ במחזור הנוכחי, כך שאין לך מגרש לתעד בו תוצאות."}
-        </div>
-      </article>
+      {!squadPublished ? (
+        <RoundCard status={status} caption="תיעוד התוצאות ייפתח כשיתפרסמו ההרכבים." />
+      ) : (
+        <article className="glass">
+          <div className="notice">
+            <Bell size={18} />
+            אינך משובץ במחזור הנוכחי, כך שאין לך מגרש לתעד בו תוצאות.
+          </div>
+        </article>
+      )}
     </section>
   );
 }
@@ -6175,6 +7827,17 @@ function aggregatePeople(rows, idKey, nameKey) {
 function formatDate(date) {
   if (!date) return "";
   return new Intl.DateTimeFormat("he-IL", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(date));
+}
+
+// Date + time down to the second — for the one spot (the registration
+// queue) where an admin needs to see exactly when someone registered, not
+// just the day.
+function formatDateTimeExact(date) {
+  if (!date) return "";
+  return new Intl.DateTimeFormat("he-IL", {
+    day: "2-digit", month: "2-digit", year: "numeric",
+    hour: "2-digit", minute: "2-digit", second: "2-digit"
+  }).format(new Date(date));
 }
 
 function dateInput(date) {

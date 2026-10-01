@@ -1,63 +1,81 @@
 /* ==========================================================================
-   בדאט כדורגל — Design System
-   Dark "night pitch" theme: neutral graphite surfaces, grass-green accent,
-   glow-based elevation. RTL-first, Hebrew type via Assistant.
+   בדאט כדורגל — Design System ("turf, chalk and bibs", v2)
+   Night-turf surfaces (green-biased, not graphite), a training-bib orange
+   for the one primary action, deep turf green for the brand and for
+   "you're in". Status colours are fixed: green = placed, amber = standby,
+   red = payment / cancel. RTL-first; IBM Plex Sans Hebrew for text,
+   Karantina (narrow, scoreboard-like) for times, scores and page titles.
    ========================================================================== */
 
-@import url('https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Hebrew:wght@400;500;600;700&family=Karantina:wght@400;700&display=swap');
 
 :root {
   /* ---- Surfaces (dark, layered by elevation) ----
-     Neutral graphite, not green-tinted — the accent carries the football
-     identity instead of the surfaces themselves. */
-  --bg:        #14161a;
-  --bg-2:      #181b20;
-  --surface:   #1c1f25;
-  --surface-2: #23272e;
-  --surface-3: #2b2f38;
-  --sunken:    #101216;
+     Night turf: every neutral carries a slight green bias. */
+  --bg:        #0c1511;
+  --bg-2:      #0f1a15;
+  --surface:   #14201a;
+  --surface-2: #1b2922;
+  --surface-3: #22322a;
+  --sunken:    #0a120e;
 
   /* ---- Lines ---- */
-  --line:      #31363f;
-  --line-soft: #262a31;
+  --line:      #283830;
+  --line-soft: #1f2d26;
 
   /* ---- Ink ---- */
-  --ink:       #eef0f3;
-  --ink-2:     #c4c9d1;
-  --ink-3:     #9aa3af;
-  --ink-4:     #6d7580;
+  --ink:       #e8efea;
+  --ink-2:     #c2d0c6;
+  --ink-3:     #92a499;
+  --ink-4:     #6a7d72;
 
-  /* ---- Accent: grass green ---- */
-  --acc:       oklch(0.78 0.10 155);
-  --acc-2:     oklch(0.70 0.11 155);
-  --acc-ink:   #12211a;
-  --acc-glow:  oklch(0.78 0.10 155 / .30);
-  --acc-dim:   oklch(0.78 0.10 155 / .13);
+  /* ---- Accent: training-bib orange (primary action / selection) ---- */
+  --acc:       #ff7c3b;
+  --acc-2:     #f06a28;
+  --acc-ink:   #1a0c04;
+  --acc-glow:  rgba(255,124,59,.28);
+  --acc-dim:   rgba(255,124,59,.13);
+
+  /* ---- Brand: turf green (eyebrows, "placed", brand marks) ---- */
+  --turf:      #56b383;
+  --turf-ink:  #0c1511;
+  --turf-dim:  rgba(86,179,131,.14);
 
   /* ---- Semantic ---- */
-  --ok:        oklch(0.78 0.10 175);
-  --ok-dim:    oklch(0.78 0.10 175 / .14);
-  --warn:      oklch(0.80 0.11 72);
-  --warn-dim:  oklch(0.80 0.11 72 / .14);
-  --bad:       oklch(0.68 0.17 25);
-  --bad-dim:   oklch(0.68 0.17 25 / .14);
+  --ok:        #62c491;
+  --ok-dim:    rgba(98,196,145,.14);
+  --warn:      #e8aa42;
+  --warn-dim:  rgba(232,170,66,.15);
+  --bad:       #f27d71;
+  --bad-dim:   rgba(242,125,113,.14);
   --info:      oklch(0.75 0.10 230);
   --info-dim:  oklch(0.75 0.10 230 / .14);
 
   /* ---- Rating hues ---- */
   --atk: oklch(0.72 0.15 40);
   --def: oklch(0.75 0.10 230);
-  --fit: oklch(0.78 0.10 155);
+  --fit: #62c491;
+
+  /* ---- Pitch drawing ---- */
+  --pitch:     #1f5c3c;
+  --pitch-2:   #1c5537;
+  --chalk:     rgba(255,255,255,.6);
+
+  /* ---- Type ---- */
+  --font-body:    'IBM Plex Sans Hebrew', 'Assistant', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-display: 'Karantina', 'IBM Plex Sans Hebrew', 'Arial Narrow', sans-serif;
 
   /* ---- Chrome: sticky, blurred surfaces (topbar, mobile bottom nav) ----
      Kept as a bare RGB triplet so each site can wrap it in its own alpha. */
-  --chrome-rgb: 20,22,26;
+  --chrome-rgb: 12,21,17;
 
-  /* ---- Ambient background glow (body + floating blobs) ---- */
-  --glow-1: oklch(0.78 0.10 155 / .10);
-  --glow-2: oklch(0.75 0.10 230 / .08);
-  --ambient-a: oklch(0.78 0.10 155 / .14);
-  --ambient-b: oklch(0.75 0.10 230 / .11);
+  /* ---- Ambient background glow (body + floating blobs) ----
+     Turned almost all the way down: elevation now comes from surface
+     steps and shadow, not glow. */
+  --glow-1: rgba(86,179,131,.05);
+  --glow-2: transparent;
+  --ambient-a: transparent;
+  --ambient-b: transparent;
 
   /* A touch lighter than --line, for hover states that need to read as
      "slightly emphasized" rather than a full border-color change. */
@@ -97,7 +115,7 @@
   --ease: cubic-bezier(.22,.8,.36,1);
 
   color-scheme: dark;
-  font-family: 'Assistant', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family: var(--font-body);
   font-feature-settings: 'kern' 1;
 }
 
@@ -112,34 +130,42 @@
    many places (links, pills, "eyebrow" labels), not just fills.
    ========================================================================== */
 :root[data-theme="light"] {
-  --bg:        #e9f0e8;
-  --bg-2:      #e0e8dd;
+  --bg:        #f1f4f0;
+  --bg-2:      #e9eee8;
   --surface:   #ffffff;
-  --surface-2: #f1f6ef;
-  --surface-3: #e5ece1;
-  --sunken:    #e4ece1;
+  --surface-2: #f0f4ef;
+  --surface-3: #e3eae3;
+  --sunken:    #e6ece6;
 
-  --line:      #d3e2d2;
-  --line-soft: #deebde;
-  --line-hover:#bbcdb8;
+  --line:      #d2dbd3;
+  --line-soft: #e0e7e0;
+  --line-hover:#b9c6bc;
 
-  --ink:       #0f2318;
-  --ink-2:     #3b5044;
-  --ink-3:     #5c7264;
-  --ink-4:     #889d8d;
+  --ink:       #13201a;
+  --ink-2:     #34463c;
+  --ink-3:     #56675d;
+  --ink-4:     #85958a;
 
-  --acc:       oklch(0.52 0.11 150);
-  --acc-2:     oklch(0.44 0.12 150);
+  --acc:       #e35d1c;
+  --acc-2:     #c94e12;
   --acc-ink:   #ffffff;
-  --acc-glow:  oklch(0.52 0.11 150 / .22);
-  --acc-dim:   oklch(0.52 0.11 150 / .10);
+  --acc-glow:  rgba(227,93,28,.22);
+  --acc-dim:   rgba(227,93,28,.10);
 
-  --ok:        oklch(0.48 0.11 175);
-  --ok-dim:    oklch(0.48 0.11 175 / .12);
-  --warn:      oklch(0.56 0.11 70);
-  --warn-dim:  oklch(0.56 0.11 70 / .14);
-  --bad:       oklch(0.55 0.19 25);
-  --bad-dim:   oklch(0.55 0.19 25 / .11);
+  --turf:      #1d6a45;
+  --turf-ink:  #ffffff;
+  --turf-dim:  rgba(29,106,69,.10);
+
+  --ok:        #1d6a45;
+  --ok-dim:    #dceee2;
+  --warn:      #9a6410;
+  --warn-dim:  #fbefd6;
+  --bad:       #b0302a;
+  --bad-dim:   #f8e0dc;
+
+  --pitch:     #2b7a50;
+  --pitch-2:   #287249;
+  --chalk:     rgba(255,255,255,.78);
   --info:      oklch(0.52 0.14 230);
   --info-dim:  oklch(0.52 0.14 230 / .11);
 
@@ -148,13 +174,13 @@
      alias --acc (--fit) and --info (--def), so their light overrides do too. */
   --atk: oklch(0.55 0.17 35);
   --def: oklch(0.52 0.14 230);
-  --fit: oklch(0.52 0.11 150);
+  --fit: #1d6a45;
 
-  --chrome-rgb: 233,240,232;
-  --glow-1: oklch(0.52 0.11 150 / .07);
-  --glow-2: oklch(0.52 0.14 230 / .06);
-  --ambient-a: oklch(0.52 0.11 150 / .10);
-  --ambient-b: oklch(0.52 0.14 230 / .08);
+  --chrome-rgb: 241,244,240;
+  --glow-1: rgba(29,106,69,.04);
+  --glow-2: transparent;
+  --ambient-a: transparent;
+  --ambient-b: transparent;
 
   --e-1: 0 1px 2px rgba(20,50,30,.08);
   --e-2: 0 4px 16px rgba(20,50,30,.08);
@@ -603,8 +629,8 @@ button.icon-only {
   margin: 0 0 3px;
   font-size: .72rem;
   font-weight: 700;
-  letter-spacing: .1em;
-  color: var(--acc);
+  letter-spacing: .06em;
+  color: var(--turf);
   text-transform: uppercase;
 }
 .eyebrow svg { width: 13px; height: 13px; flex: none; }
@@ -648,11 +674,11 @@ main { display: block; }
    ========================================================================== */
 
 .glass {
-  background: linear-gradient(180deg, var(--surface) 0%, var(--bg-2) 100%);
-  border: 1.5px solid var(--line);
-  border-radius: var(--r-xl);
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-lg);
   padding: clamp(var(--space-4), 2vw, var(--space-5));
-  box-shadow: var(--e-2);
+  box-shadow: var(--e-1);
 }
 
 .grid { display: grid; gap: var(--space-4); grid-template-columns: 1fr; align-content: start; }
@@ -733,10 +759,10 @@ main { display: block; }
 
 /* Registration status colours */
 .status-pill.attending       { background: var(--ok-dim);   color: var(--ok);   border-color: color-mix(in srgb, var(--ok) 30%, transparent); }
-.status-pill.payment_pending { background: var(--warn-dim); color: var(--warn); border-color: color-mix(in srgb, var(--warn) 30%, transparent); }
-.status-pill.standby         { background: var(--info-dim); color: var(--info); border-color: color-mix(in srgb, var(--info) 30%, transparent); }
+.status-pill.payment_pending { background: var(--bad-dim);  color: var(--bad);  border-color: color-mix(in srgb, var(--bad) 30%, transparent); }
+.status-pill.standby         { background: var(--warn-dim); color: var(--warn); border-color: color-mix(in srgb, var(--warn) 30%, transparent); }
 .status-pill.cancelled,
-.status-pill.not_attending   { background: var(--bad-dim);  color: var(--bad);  border-color: color-mix(in srgb, var(--bad) 30%, transparent); }
+.status-pill.not_attending   { background: var(--surface-2); color: var(--ink-3); border-color: var(--line); }
 
 /* ==========================================================================
    PLAYER — hero, status, metrics
@@ -747,19 +773,9 @@ main { display: block; }
   display: grid;
   gap: 20px;
   overflow: hidden;
-  background:
-    radial-gradient(680px 300px at 88% -30%, color-mix(in srgb, var(--acc) 16%, transparent), transparent 70%),
-    linear-gradient(180deg, var(--surface) 0%, var(--bg-2) 100%);
-  border-color: var(--line-hover);
-}
-/* Pitch-stripe accent along the inline start edge */
-.hero-panel::before {
-  content: "";
-  position: absolute;
-  inset-block: 0;
-  inset-inline-start: 0;
-  width: 4px;
-  background: linear-gradient(180deg, var(--acc), transparent);
+  background: var(--surface);
+  border-color: var(--line);
+  box-shadow: var(--e-2);
 }
 @media (min-width: 860px) {
   .hero-panel { grid-template-columns: minmax(0, 1.55fr) minmax(230px, .85fr); align-items: start; }
@@ -776,7 +792,7 @@ main { display: block; }
   font-weight: 500;
 }
 .meta-row span { display: inline-flex; align-items: center; gap: 7px; }
-.meta-row svg { width: 16px; height: 16px; color: var(--acc); flex: none; }
+.meta-row svg { width: 16px; height: 16px; color: var(--turf); flex: none; }
 
 /* The day/date/time is the one thing a player actually needs at a glance,
    now that it's carrying the heading instead of the fixture's title. */
@@ -794,15 +810,15 @@ main { display: block; }
   align-items: flex-start;
   gap: 10px;
   padding: 12px 14px;
-  background: var(--acc-dim);
-  border: 1px solid color-mix(in srgb, var(--acc) 22%, transparent);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
   border-radius: var(--r-md);
   font-size: .88rem;
   font-weight: 500;
-  color: var(--acc);
+  color: var(--ink-2);
   line-height: 1.5;
 }
-.notice svg { width: 17px; height: 17px; color: var(--acc); flex: none; margin-top: 2px; }
+.notice svg { width: 17px; height: 17px; color: var(--turf); flex: none; margin-top: 2px; }
 
 /* Tap-to-reveal caption: a short explanatory note kept out of sight until
    the trigger is tapped, instead of always sitting next to a heading. */
@@ -839,8 +855,9 @@ main { display: block; }
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
 }
+.status-card-pills { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .status-card strong { font-size: 1.15rem; font-weight: 700; line-height: 1.25; }
-.status-card .pill { background: var(--acc-dim); border-color: color-mix(in srgb, var(--acc) 25%, transparent); color: var(--acc); }
+.status-card .pill { background: var(--turf-dim); border-color: color-mix(in srgb, var(--turf) 25%, transparent); color: var(--turf); }
 .status-card .credit-pill { background: var(--warn-dim); border-color: color-mix(in srgb, var(--warn) 25%, transparent); color: var(--warn); }
 
 /* ---- Metrics ---- */
@@ -1594,6 +1611,33 @@ button.formation-player { cursor: grab; }
 
 /* Styled to read as navigation (a track holding tabs), matching the
    look of the bottom .segmented nav rather than a plain content card. */
+/* The higher-level switch above .admin-tabs — always exactly two buckets
+   ("this fixture" vs "the club"), so unlike the chip strip below it, these
+   share the row equally instead of scrolling. */
+.admin-groups {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.admin-groups button {
+  flex: 1 1 0;
+  min-height: 44px;
+  padding: 10px 12px;
+  background: var(--surface-2);
+  border: 1.5px solid var(--line);
+  border-radius: var(--r-md);
+  color: var(--ink-2);
+  font-weight: 700;
+  font-size: .92rem;
+}
+.admin-groups button:hover:not(.active) { border-color: var(--line-hover); }
+.admin-groups button.active {
+  background: var(--acc);
+  border-color: var(--acc);
+  color: var(--acc-ink);
+  box-shadow: 0 2px 10px var(--acc-glow);
+}
+
 .admin-tabs {
   display: flex;
   gap: 4px;
@@ -1668,47 +1712,6 @@ button.formation-player { cursor: grab; }
   font-variant-numeric: tabular-nums;
 }
 
-/* The match state list: a set of places the fixture can be, not a pipeline.
-   No rail, no numbers, no progress fill — any state is reachable from any other. */
-.state-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.state-option {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  padding: 7px 10px;
-  background: transparent;
-  border: 0;
-  border-radius: var(--r-md);
-  text-align: start;
-  min-height: 46px;
-}
-.state-option:hover:not(:disabled) { background: var(--surface-2); }
-.state-option:disabled { cursor: default; opacity: 1; }
-
-/* Marks the state you are in — a check, never a step number. */
-.state-dot {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  background: var(--bg-2);
-  border: 2px solid var(--line);
-  color: var(--ink-4);
-  transition: background .2s var(--ease), border-color .2s var(--ease), color .2s var(--ease);
-}
-
 .flow-label { flex: 1; min-width: 0; font-size: .92rem; font-weight: 600; color: var(--ink-3); }
 .flow-hint {
   flex: none;
@@ -1718,17 +1721,7 @@ button.formation-player { cursor: grab; }
   opacity: 0;
   transition: opacity .15s var(--ease);
 }
-.state-option:hover .flow-hint,
 .audience-toggle:hover .flow-hint { opacity: 1; }
-
-.state-row.current .state-dot {
-  background: var(--acc);
-  border-color: var(--acc);
-  color: var(--acc-ink);
-  box-shadow: 0 0 0 4px var(--acc-dim);
-}
-.state-row.current .flow-label { color: var(--ink); font-weight: 700; }
-.state-row.current .flow-hint { opacity: 1; color: var(--acc); }
 
 /* ---- registration audiences: independent switches, visually distinct
        from the state list above so they don't read as further stages ---- */
@@ -1741,6 +1734,129 @@ button.formation-player { cursor: grab; }
   border-top: 1px solid var(--line-soft);
 }
 .audience-toggles .eyebrow { margin-bottom: 4px; }
+
+/* RegistrationStatusCard has its own header (flow-head) above the toggles,
+   so the divider these rows use elsewhere (to separate them from another
+   section in the same card) would be a redundant second rule here. */
+.registration-status-card .audience-toggles {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* ---- fixture status: compact badge + a sheet to jump to any other state,
+       instead of spelling every state out in a row ---- */
+.status-change-btn {
+  flex: none;
+  padding: 7px 12px;
+  font-size: .82rem;
+  gap: 6px;
+  border-radius: var(--r-pill);
+}
+.status-change-btn svg { width: 14px; height: 14px; }
+
+/* Generic sheet chrome, shared by the fixture status picker (.status-sheet)
+   and the notification center (.notif-sheet): full-width on mobile as a
+   true bottom sheet (see the @media block below), a centered card on
+   desktop. Content inside each is its own thing (.status-option rows vs
+   .notif-row rows). */
+.status-sheet,
+.notif-sheet {
+  width: min(420px, 100%);
+  max-height: 82vh;
+  overflow-y: auto;
+  padding: 18px 16px;
+  text-align: start;
+  /* .glass's own background is a top-to-bottom gradient (var(--surface) to
+     var(--bg-2)) — fine for a short card, but on a scrollable list it meant
+     the row background lost contrast against its own container the further
+     down you scrolled (var(--bg-2) and the row's var(--sunken) are nearly
+     identical in the light theme). Flat instead, so every row contrasts the
+     same regardless of scroll position. */
+  background: var(--surface);
+}
+.status-sheet-grab { display: none; }
+.status-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.status-sheet-head h2 { font-size: 1.05rem; }
+/* .modal-close is position:absolute, meant for a card with no header row of
+   its own (it sets position:relative to contain it — see .player-stats-card).
+   .status-sheet/.notif-sheet don't, so the button was escaping all the way
+   out to the fixed, full-viewport .modal-backdrop and pinning to the corner
+   of the SCREEN instead of sitting next to the title. Here it's just the
+   trailing item in an already-flex header row, so let it lay out normally. */
+.status-sheet-head .modal-close { position: static; flex: none; }
+
+.status-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 8px;
+  background: var(--sunken);
+  border: 1.5px solid var(--line-soft);
+  border-radius: var(--r-lg);
+  text-align: start;
+  min-height: 60px;
+}
+.status-option:last-child { margin-bottom: 0; }
+.status-option:hover:not(:disabled) { border-color: var(--line-hover); background: var(--surface-2); }
+.status-option:disabled { cursor: default; }
+.status-option-icon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--bg-2);
+  border: 1.5px solid var(--line);
+  color: var(--ink-4);
+}
+.status-option-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.status-option-text strong { font-size: .94rem; font-weight: 700; color: var(--ink-2); }
+.status-option-text span { font-size: .76rem; color: var(--ink-4); font-weight: 600; }
+.status-option.current { border-color: var(--acc); background: var(--acc-dim); }
+.status-option.current .status-option-icon { background: var(--acc); border-color: var(--acc); color: var(--acc-ink); }
+.status-option.current .status-option-text strong { color: var(--ink); }
+.status-option-check { flex: none; color: var(--acc); }
+
+/* Mobile: a true bottom sheet — anchored to the bottom edge, full width,
+   rounded only at the top, with a drag-handle affordance (visual only;
+   tapping the backdrop dismisses it, same as any other modal here). */
+@media (max-width: 759px) {
+  .modal-backdrop:has(.status-sheet),
+  .modal-backdrop:has(.notif-sheet) {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .status-sheet,
+  .notif-sheet {
+    width: 100%;
+    max-height: 78vh;
+    border-radius: var(--r-xl) var(--r-xl) 0 0;
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+    animation: sheet-up .24s var(--ease);
+  }
+  .status-sheet-grab {
+    display: block;
+    width: 36px;
+    height: 4px;
+    margin: 0 auto 14px;
+    border-radius: var(--r-pill);
+    background: var(--line);
+  }
+}
+@keyframes sheet-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
 
 .audience-toggle {
   display: flex;
@@ -1809,28 +1925,14 @@ button.formation-player { cursor: grab; }
   color: var(--ink-2);
 }
 .rank-weight-label strong { font-variant-numeric: tabular-nums; color: var(--acc); }
+/* Visibly inert while locked — disabled alone can look identical to a
+   normal slider at a glance, especially mid-scroll. */
+.rank-weights.locked input[type="range"] { opacity: .45; }
+.rank-weights.locked .rank-weight-label { color: var(--ink-4); }
+.rank-weights.locked .rank-weight-label strong { color: var(--ink-4); }
 
-/* ---- desktop: states side by side, audiences stay as wide switches ---- */
+/* ---- desktop: audiences stay as wide switches ---- */
 @media (min-width: 860px) {
-  .state-list { flex-direction: row; gap: 4px; }
-  .state-row { flex: 1; min-width: 0; }
-  .state-option {
-    flex-direction: column;
-    gap: 8px;
-    padding: 10px 4px;
-    text-align: center;
-    min-height: 0;
-  }
-  /* Scoped to .state-option: the audience toggles below share .flow-label but
-     stay horizontal rows, so a full-width centred label would wreck them. */
-  .state-option .flow-label {
-    flex: none;
-    width: 100%;
-    font-size: .78rem;
-    text-align: center;
-    overflow-wrap: anywhere;
-  }
-  .state-option .flow-hint { display: none; }
   .audience-toggles { flex-direction: row; align-items: center; flex-wrap: wrap; }
   .audience-toggles .eyebrow { width: 100%; margin-bottom: 0; }
   .audience-toggle { flex: 1; min-width: 180px; }
@@ -1853,6 +1955,9 @@ button.formation-player { cursor: grab; }
 .admin-list-row > div { min-width: 0; }
 .admin-list-row strong { font-size: .92rem; font-weight: 600; display: block; }
 .admin-list-row small { display: block; }
+/* Quieter than the row's other small text — exact registration time is
+   useful to have, not something that should compete for attention. */
+.queue-row-timestamp { color: var(--ink-4); font-size: .72rem; font-weight: 500; }
 .audit-row-icon {
   flex: none;
   display: inline-flex;
@@ -1867,6 +1972,258 @@ button.formation-player { cursor: grab; }
 
 .row-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-inline-start: auto; }
 .row-actions button { min-height: 38px; padding: 8px 13px; font-size: .84rem; }
+
+/* ---- Monthly subscription: one month's day-picker grid — the admin's
+       editable version and the player's read-only one share this. ---- */
+/* 1fr columns fill whatever narrow width the card has on mobile with no
+   overflow; the max-width caps how large each square gets once the card is
+   as wide as a desktop admin panel, where 1fr alone would blow the cells up
+   to the full card width. */
+.month-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin: 14px 0;
+  max-width: 360px;
+}
+.month-grid-weekday {
+  text-align: center;
+  font-size: .7rem;
+  font-weight: 700;
+  color: var(--ink-4);
+  padding-bottom: 4px;
+}
+.month-grid-day {
+  aspect-ratio: 1;
+  min-height: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--sunken);
+  border: 1.5px solid var(--line-soft);
+  border-radius: var(--r-sm);
+  font-size: .82rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+}
+.month-grid-day:disabled { opacity: 1; cursor: default; }
+.month-grid-day.empty { background: transparent; border-color: transparent; }
+/* A solid fill, not just a tinted background — a day is either playing or
+   not, and that needs to read at a glance, not on close inspection.
+   Repeated with :hover because a tap leaves a button "hovered" on mobile
+   (no mouse to un-hover it) until something else is tapped — the global
+   button:hover:not(:disabled) rule (higher specificity: an extra element
+   selector) was winning over the plain .marked rule and masking the fill
+   with the ordinary hover background until then. */
+.month-grid-day.marked,
+.month-grid-day.marked:hover {
+  background: var(--acc);
+  border-color: var(--acc);
+  color: var(--acc-ink);
+  font-weight: 700;
+  box-shadow: 0 0 0 3px var(--acc-dim);
+}
+
+.subscription-history { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 4px; }
+.subscription-dates { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+
+/* ---- Admin push notifications: template picker, audience pills, the
+       custom-list player checklist, and the live recipient preview. ---- */
+.template-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+.template-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 14px 8px;
+  background: var(--sunken);
+  border: 1.5px solid var(--line-soft);
+  border-radius: var(--r-md);
+  font-size: .78rem;
+  font-weight: 600;
+  text-align: center;
+  color: var(--ink-3);
+}
+.template-card svg { color: var(--ink-4); }
+.template-card.active { border-color: var(--acc); background: var(--acc-dim); color: var(--acc); }
+.template-card.active svg { color: var(--acc); }
+
+.audience-pill.active { background: var(--acc); border-color: var(--acc); color: var(--acc-ink); font-weight: 700; }
+
+.notif-player-picker { margin-top: 12px; }
+.notif-player-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 260px;
+  overflow-y: auto;
+  margin-top: 8px;
+}
+.notif-player-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  text-align: start;
+  font-size: .88rem;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.notif-player-row:hover { background: var(--surface-2); }
+.notif-player-row img { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; flex: none; background: var(--surface-3); }
+.notif-player-row span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.notif-player-row.checked { border-color: var(--acc); background: var(--acc-dim); color: var(--ink); }
+.notif-player-check { flex: none; color: var(--acc); }
+
+.notif-preview {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line-soft);
+}
+.notif-preview-avatars { display: flex; }
+.notif-preview-avatars img {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--surface);
+  background: var(--surface-3);
+  margin-inline-start: -8px;
+}
+.notif-preview-avatars img:first-child { margin-inline-start: 0; }
+
+.notif-send { width: 100%; margin-top: 14px; }
+
+/* ---- Notification composer: when-to-send (now/scheduled) + repeat ---- */
+.notif-timing-label { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line-soft); }
+.notif-schedule-fields {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 12px;
+}
+.notif-repeat-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: .88rem;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.notif-repeat-toggle input { width: 18px; height: 18px; accent-color: var(--acc); }
+.notif-repeat-fields { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.notif-repeat-fields > span { font-size: .88rem; font-weight: 600; color: var(--ink-2); }
+.notif-repeat-value { width: 64px; text-align: center; }
+
+/* ---- Player-facing "enable notifications" prompt (PushNotificationPrompt) ---- */
+.push-prompt {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  border: 1.5px solid var(--acc);
+  background: var(--acc-dim);
+}
+.push-prompt-icon { flex: none; color: var(--acc); }
+.push-prompt-copy { flex: 1 1 220px; min-width: 0; }
+.push-prompt-copy h2 { font-size: 1rem; margin-bottom: 2px; }
+.push-prompt-copy p { font-size: .84rem; color: var(--ink-2); margin: 0; }
+.push-prompt-actions { display: flex; gap: 8px; flex: none; }
+@media (max-width: 759px) {
+  .push-prompt-actions { width: 100%; }
+  .push-prompt-actions button { flex: 1 1 0; }
+}
+
+/* ---- "דורש טיפול" action items panel (top of the player home page) ---- */
+.action-items { border-color: var(--acc); }
+.action-items-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.action-item-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--acc-dim);
+  border: 1px solid color-mix(in srgb, var(--acc) 25%, transparent);
+  border-radius: var(--r-md);
+}
+.action-item-icon { flex: none; color: var(--acc); }
+.action-item-row > span { flex: 1 1 160px; min-width: 0; font-size: .88rem; font-weight: 600; color: var(--ink); }
+.action-item-buttons { display: flex; gap: 8px; flex: none; }
+@media (max-width: 759px) {
+  .action-item-row { flex-direction: column; align-items: stretch; }
+  .action-item-buttons { width: 100%; }
+  .action-item-buttons button { flex: 1 1 0; }
+}
+
+/* ---- Notification bell (topbar) + notification center sheet ---- */
+.notif-bell-btn { position: relative; }
+.notif-badge {
+  position: absolute;
+  top: 2px;
+  inset-inline-end: 2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-pill);
+  background: var(--bad);
+  color: #fff;
+  font-size: .62rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* Both flex `gap` AND an explicit margin on every row (not just a
+   flex-`gap`-only approach) — belt and suspenders so separation shows up
+   even if something about this scroll container keeps `gap` from being
+   applied to every child, which is what made only some rows (the ones
+   `gap` did reach) look separated and the rest read as run together. */
+.notif-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.notif-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px;
+  margin-bottom: 16px;
+  background: var(--sunken);
+  /* --line reads as barely-there against a near-white surface —
+     --line-hover is the same token used for hover states elsewhere
+     precisely because it's the more visible of the two. */
+  border: 1.5px solid var(--line-hover);
+  border-radius: var(--r-lg);
+  box-shadow: var(--e-1);
+}
+.notif-row:last-child { margin-bottom: 0; }
+/* --sunken is only a hair off white in the light theme (too close to both
+   the now-flat white sheet AND var(--bg-2)) — a visibly deeper, cooler tint
+   here instead, just for this list. */
+:root[data-theme="light"] .notif-row { background: #dce8da; }
+.notif-row strong { font-size: .9rem; font-weight: 700; color: var(--ink); }
+.notif-row p { margin: 0; font-size: .84rem; color: var(--ink-2); line-height: 1.4; }
+.notif-row small { font-size: .72rem; color: var(--ink-4); font-weight: 600; }
+.notif-empty { text-align: center; padding: 24px 12px; color: var(--ink-4); }
 
 /* Registration queue */
 .queue-groups { display: grid; gap: 16px; }
@@ -2342,9 +2699,22 @@ tbody button { min-height: 38px; padding: 8px 14px; font-size: .84rem; }
   justify-content: center;
   width: 30px;
   height: 30px;
-  border-radius: 50%;
+  min-width: 30px;
+  min-height: 30px;
+  max-width: 30px;
+  max-height: 30px;
+  aspect-ratio: 1;
+  /* A large fixed radius (this app's own convention for perfect circles,
+     see --r-pill elsewhere) instead of 50% — on a box already pinned to an
+     exact 30x30 by width/height/min/max, this makes no visual difference,
+     but if anything upstream ever lets the box's own size go fractional,
+     999px still clips to a full circle where 50% of a non-square box would
+     round into a corner instead. */
+  border-radius: var(--r-pill);
   flex: none;
+  overflow: hidden;
 }
+.toast-icon svg { flex: none; }
 .toast span { flex: 1; font-size: .89rem; font-weight: 500; }
 .toast-close { width: 32px; min-width: 32px; height: 32px; min-height: 0; }
 .toast.success { border-color: color-mix(in srgb, var(--ok) 40%, transparent); }
@@ -2433,6 +2803,33 @@ body.modal-open {
   animation: pop-in .26s var(--ease);
 }
 .player-stats-avatar { width: 72px; height: 72px; }
+
+/* The player's own profile — opened from the topbar avatar, not a
+   permanent home-page card. position:relative is what lets .modal-close
+   anchor to THIS card instead of escaping to the fixed, full-viewport
+   .modal-backdrop (the same bug already fixed on the other sheets here). */
+.profile-modal-card {
+  position: relative;
+  width: min(420px, 100%);
+  max-height: 85vh;
+  overflow-y: auto;
+  padding: 24px 20px;
+  text-align: start;
+  box-shadow: var(--e-3);
+  animation: pop-in .26s var(--ease);
+}
+
+/* Topbar trigger — a plain <img> can't be focused/tapped reliably, so this
+   wraps it in a real button while keeping the exact same visual. */
+.topbar-avatar-btn {
+  padding: 0;
+  min-height: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 50%;
+}
+.topbar-avatar-btn:hover:not(:disabled) { background: transparent; }
+.topbar-avatar-btn:active:not(:disabled) { transform: scale(.96); }
 /* Always 3-across on one line, even on a narrow phone — auto-fit's usual
    wrapping (see .stat-grid above) meant the 3rd stat dropped to its own row
    once the modal got narrow enough. */
@@ -2813,6 +3210,16 @@ body.modal-open {
   margin-top: 4px;
 }
 
+.notif-toggle { margin: 10px 0 16px; width: 100%; }
+.notif-toggle.on { border-color: var(--acc); color: var(--acc); background: var(--acc-dim); }
+.notif-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 10px 0 16px;
+  font-size: .78rem;
+}
+
 .org-picker-list { display: flex; flex-direction: column; gap: 8px; width: 100%; }
 .org-picker-list button { width: 100%; justify-content: center; }
 
@@ -2907,6 +3314,10 @@ body.modal-open {
 .alert-row > div:first-of-type { flex: 1; }
 .alert-row img { margin-top: 2px; width: 38px; height: 38px; border-radius: 50%; object-fit: cover; flex: none; background: var(--surface-3); }
 .alert-reason { color: var(--ink-2); }
+
+/* .admin-list-row itself sets no img size — every row that puts an <img>
+   directly in one needs its own sizing modifier, same as .alert-row above. */
+.subscriber-row img { width: 38px; height: 38px; border-radius: 50%; object-fit: cover; flex: none; background: var(--surface-3); }
 
 .alert-row .row-actions button { min-height: 36px; padding: 7px 12px; font-size: .82rem; }
 .alert-row .row-actions button.ghost {
@@ -3042,13 +3453,6 @@ body.modal-open {
 
 .confirm-card .actions button { flex: 1 1 auto; min-width: 120px; }
 .confirm-card .actions button:disabled { opacity: .6; }
-
-/* The state you are already in is not clickable */
-.state-row.current .state-option {
-  background: var(--acc-dim);
-  cursor: default;
-  opacity: 1;
-}
 
 /* Understaffed-team alert: a lineup slot needs filling right now */
 .alert-panel-danger {
@@ -3443,28 +3847,29 @@ html, body { max-width: 100%; overflow-x: hidden; touch-action: manipulation; }
   }
   .app-shell {
     padding-inline: max(12px, env(safe-area-inset-left));
-    /* Room for the floating bottom nav (its own height + the margin that
-       detaches it from the screen edge). */
-    padding-bottom: calc(78px + env(safe-area-inset-bottom));
+    /* Room for the fixed bottom nav (its own height, flush to the edge). */
+    padding-bottom: calc(70px + env(safe-area-inset-bottom));
   }
 
-  /* Primary nav floats above the edge, thumb reach — a detached rounded bar
-     rather than a flush-to-edge strip, so it reads as a deliberate control
-     floating over the content instead of a leftover browser toolbar. */
+  /* Primary nav sits flush against the screen edge, thumb reach — a
+     full-width bar rather than a floating island, so nothing (content or
+     background) shows past its sides or beneath it. */
   .segmented {
     position: fixed;
-    inset-inline: 12px;
-    bottom: max(12px, env(safe-area-inset-bottom));
+    inset-inline: 0;
+    bottom: 0;
     z-index: 50;
     order: 0;
     width: auto;
     gap: 2px;
     padding: 6px;
+    padding-bottom: max(6px, env(safe-area-inset-bottom));
     background: rgba(var(--chrome-rgb), .96);
     backdrop-filter: blur(20px) saturate(150%);
     -webkit-backdrop-filter: blur(20px) saturate(150%);
     border: 1.5px solid var(--line);
-    border-radius: var(--r-xl);
+    border-width: 1.5px 0 0 0;
+    border-radius: 0;
     box-shadow: var(--e-3);
     overflow: visible;
   }
@@ -3506,9 +3911,9 @@ html, body { max-width: 100%; overflow-x: hidden; touch-action: manipulation; }
   .toolbar { width: auto; }
   .topbar > div:first-child { flex: 1 1 auto; }
 
-  /* Toast must clear the floating bottom nav. */
+  /* Toast must clear the fixed bottom nav. */
   .toast {
-    bottom: calc(84px + env(safe-area-inset-bottom));
+    bottom: calc(78px + env(safe-area-inset-bottom));
     /* Stretch to the safe width instead of hugging the text, so longer
        messages wrap instead of pushing against the screen edges. */
     width: auto;
@@ -3985,3 +4390,331 @@ html, body { max-width: 100%; overflow-x: hidden; touch-action: manipulation; }
   color: var(--ink-4);
 }
 .org-fixed-clear:hover { color: var(--ink); }
+
+/* ==========================================================================
+   V2 — turf, chalk and bibs
+   Components added with the redesign: the round timeline, the game
+   "ticket" time, status tones, the admin next-step card and mode strip.
+   ========================================================================== */
+
+/* Page titles and big numbers in the scoreboard face */
+.page-title h2,
+.next-step-card h2 { text-wrap: balance; }
+.page-title h2 { font-family: var(--font-display); font-size: 2.3rem; font-weight: 700; line-height: 1; letter-spacing: .005em; }
+
+/* ---- Game ticket: the kick-off time is the hero ---- */
+.ticket-when { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+.ticket-time {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(4.2rem, 3.4rem + 3vw, 5.6rem);
+  line-height: .78;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.ticket-date { display: grid; gap: 4px; min-width: 0; padding-bottom: 2px; }
+.ticket-date .upcoming-date { font-size: 1.15rem; font-weight: 600; }
+.ticket-date .meta-row { font-size: .86rem; }
+
+/* ---- Status tones: green = in, amber = standby, red = payment ---- */
+.notice.tone-attending       { background: var(--ok-dim);   border-color: color-mix(in srgb, var(--ok) 28%, transparent);   color: var(--ok); }
+.notice.tone-attending svg   { color: var(--ok); }
+.notice.tone-standby         { background: var(--warn-dim); border-color: color-mix(in srgb, var(--warn) 30%, transparent); color: var(--warn); }
+.notice.tone-standby svg     { color: var(--warn); }
+.notice.tone-payment_pending { background: var(--bad-dim);  border-color: color-mix(in srgb, var(--bad) 28%, transparent);  color: var(--bad); }
+.notice.tone-payment_pending svg { color: var(--bad); }
+.status-card .status-line.attending       { color: var(--ok); }
+.status-card .status-line.standby         { color: var(--warn); }
+.status-card .status-line.payment_pending { color: var(--bad); }
+.status-card .status-line.cancelled,
+.status-card .status-line.not_attending   { color: var(--ink-3); }
+
+/* ---- Round timeline ---- */
+.round-card { display: grid; gap: 14px; align-content: start; }
+.round-card > .muted { margin: 0; line-height: 1.55; }
+.round-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  position: relative;
+}
+.round-timeline::before {
+  content: "";
+  position: absolute;
+  top: 10px;
+  inset-inline: 10%;
+  height: 2px;
+  background: var(--line);
+}
+.round-step { display: grid; justify-items: center; gap: 6px; text-align: center; position: relative; font-size: .76rem; font-weight: 500; color: var(--ink-3); }
+.round-dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--surface);
+  border: 2px solid var(--line);
+  color: var(--turf-ink);
+}
+.round-step.done .round-dot { background: var(--turf); border-color: var(--turf); }
+.round-step.now { color: var(--ink); font-weight: 700; }
+.round-step.now .round-dot { border-color: var(--acc); box-shadow: 0 0 0 4px var(--acc-dim); }
+.round-step.now .round-dot::after { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--acc); }
+
+/* ---- Admin: mode strip + next step ---- */
+.admin-mode-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  border-radius: var(--r-md);
+  background: var(--ink);
+  color: var(--bg);
+  font-size: .84rem;
+  font-weight: 600;
+}
+.admin-mode-bar strong { margin-inline-start: auto; font-weight: 700; }
+.next-step-card {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+  padding: clamp(var(--space-4), 2vw, var(--space-5));
+  background: var(--surface);
+  border: 2px solid var(--acc);
+  border-radius: var(--r-lg);
+}
+.next-step-card .eyebrow { color: var(--acc); }
+.next-step-card h2 { font-size: 1.2rem; line-height: 1.3; }
+.next-step-card .muted { margin: 0; }
+.next-step-card button { margin-top: 6px; }
+
+/* KPIs as one compact strip instead of four big tiles */
+.kpi-card .stat-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; }
+.kpi-card .metric { background: transparent; border: 0; border-radius: 0; padding: 6px 4px; }
+.kpi-card .metric + .metric { border-inline-start: 1px solid var(--line-soft); }
+.kpi-card .metric:hover { transform: none; }
+.kpi-card .metric svg { display: none; }
+
+/* Add-player search sits where the old dropdown was */
+.inline-form .player-combobox { flex: 1 1 220px; min-width: 0; }
+
+/* Mid widths: the wider Hebrew face no longer fits name + six tabs on one
+   row, so the nav drops to its own full-width row under the header. */
+.topbar h1 { white-space: nowrap; }
+@media (min-width: 760px) and (max-width: 1179px) {
+  .topbar-row { flex-wrap: wrap; }
+  .topbar-row .topbar { flex: 1 1 100%; }
+  .topbar-row .segmented { flex: 1 1 100%; justify-content: center; }
+}
+
+/* Orange is kept for the one primary action per screen. The admin's two
+   inner tab rows mark their selection quietly instead of stacking three
+   orange pills under the main nav. */
+.admin-groups button.active {
+  background: var(--surface-3);
+  border-color: var(--line-hover);
+  color: var(--ink);
+  box-shadow: none;
+}
+.admin-tabs button.active {
+  background: var(--turf-dim);
+  color: var(--turf);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--turf) 35%, transparent);
+}
+
+/* Admin mode strip: dark in both themes, never a bright bar in dark mode. */
+.admin-mode-bar { background: #1b2922; color: #e8efea; border: 1px solid var(--line); }
+:root[data-theme="light"] .admin-mode-bar { background: #13201a; color: #f1f4f0; border-color: transparent; }
+
+/* Admin counts are plain integers, so they can use the scoreboard face. */
+.kpi-card .metric strong { font-family: var(--font-display); font-size: 2.3rem; line-height: .95; }
+
+/* Leaving a round is a destructive choice: outline it in red. */
+.hero-copy .actions button:not(.primary):not(.danger) {
+  background: transparent;
+  color: var(--bad);
+  border-color: color-mix(in srgb, var(--bad) 55%, transparent);
+}
+
+/* On/off state is green ("open"), not the action orange. */
+.audience-toggle.on { border-color: color-mix(in srgb, var(--turf) 55%, transparent); background: var(--turf-dim); }
+.audience-toggle.on .flow-hint { color: var(--turf); }
+.audience-toggle.on .switch-track { background: var(--turf); border-color: var(--turf); }
+.audience-toggle.on .switch-track::after { background: var(--turf-ink); }
+
+/* ==========================================================================
+   V2 — lineups on the pitch
+   Turf from the palette tokens, real markings (boxes at each end, a centre
+   circle on every halfway line), your team first and marked, other pitches
+   folded to one line when you have your own to look at.
+   ========================================================================== */
+button.pitch-field-title {
+  width: 100%;
+  min-height: 0;
+  padding: 0;
+  margin: 0 0 12px;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 2.2rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: default;
+}
+button.pitch-field-title:not(:disabled) { cursor: pointer; }
+button.pitch-field-title:hover:not(:disabled) { background: transparent; }
+button.pitch-field-title:disabled { opacity: 1; }
+.pitch-field-card.folded button.pitch-field-title { margin-bottom: 0; justify-content: flex-start; }
+.pitch-fold-icon { margin-inline-start: auto; color: var(--ink-3); transition: transform .18s var(--ease); }
+.pitch-field-card:not(.folded) .pitch-fold-icon { transform: rotate(180deg); }
+.pitch-mine-tag { font-family: var(--font-body); background: var(--acc-dim); border-color: color-mix(in srgb, var(--acc) 30%, transparent); color: var(--acc); }
+.pitch-summary { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-body); font-size: .85rem; font-weight: 500; }
+.pitch-summary .muted { margin-inline-start: 4px; }
+.pitch-swatch { width: 18px; height: 18px; border-radius: 5px; border: 1px solid rgba(0,0,0,.2); box-shadow: inset 0 0 0 1px rgba(255,255,255,.25); }
+
+.pitch-field {
+  border: 0;
+  border-radius: var(--r-md);
+  padding: 30px 14px;
+  background:
+    repeating-linear-gradient(180deg, var(--pitch) 0 44px, var(--pitch-2) 44px 88px);
+  box-shadow: inset 0 0 0 8px var(--pitch), inset 0 0 0 10px var(--chalk);
+}
+/* Penalty boxes at each end */
+.pitch-box {
+  position: absolute;
+  inset-inline: 30%;
+  height: 22px;
+  border: 2px solid var(--chalk);
+  pointer-events: none;
+}
+.pitch-box.top { top: 8px; border-top: 0; }
+.pitch-box.bottom { bottom: 8px; border-bottom: 0; }
+
+/* Halfway line + centre circle between consecutive teams */
+.formation + .formation { border-top: 2px solid var(--chalk); }
+.formation + .formation::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: 50%;
+  width: 72px;
+  height: 72px;
+  border: 2px solid var(--chalk);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.formation { z-index: 0; }
+.formation-head { position: relative; z-index: 1; font-family: var(--font-body); }
+.formation-row { position: relative; z-index: 1; }
+
+/* Your team: a chalk-bright zone and a label on its colour badge */
+.formation.my-team {
+  background: rgba(255,255,255,.07);
+  border-radius: var(--r-md);
+}
+.formation-mine {
+  font-size: .68rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--team-ink) 18%, transparent);
+}
+/* You: an orange ring around your own token */
+.formation-player.me img { border-color: #fff; box-shadow: 0 0 0 3px var(--acc), 0 2px 8px rgba(0,0,0,.35); }
+.formation-player.me span { color: #fff; text-decoration: underline; text-decoration-color: var(--acc); text-decoration-thickness: 2px; text-underline-offset: 3px; }
+/* Keep names clear of the centre circle that straddles each halfway line */
+.pitch-field .formation { padding: 20px 4px 34px; }
+.pitch-field .formation + .formation { padding-top: 38px; }
+.pitch-field .formation + .formation::before { width: 60px; height: 60px; }
+
+/* ==========================================================================
+   V2 — profile menu navigation
+   The bottom/segmented bar holds the four player pages; profile, admin mode
+   and organization management open from the avatar.
+   ========================================================================== */
+.profile-menu { position: relative; flex: none; }
+.profile-menu .topbar-avatar-btn { position: relative; display: block; border-radius: 50%; }
+.topbar-initials {
+  display: grid;
+  place-items: center;
+  background: var(--surface-3);
+  color: var(--ink);
+  font-weight: 700;
+  font-size: .95rem;
+  border: 2px solid var(--acc);
+  border-radius: 50%;
+}
+/* A small caret badge so the avatar reads as a menu, not just a photo */
+.profile-menu-caret {
+  position: absolute;
+  bottom: -2px;
+  inset-inline-end: -2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--surface);
+  color: var(--ink-2);
+  border: 1px solid var(--line);
+}
+.profile-menu-list {
+  position: absolute;
+  top: calc(100% + 10px);
+  inset-inline-start: 0;
+  z-index: 60;
+  min-width: 210px;
+  display: grid;
+  gap: 2px;
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: var(--e-3);
+}
+.profile-menu-list button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: var(--tap);
+  padding: 8px 12px;
+  background: transparent;
+  border: 0;
+  border-radius: var(--r-sm);
+  color: var(--ink);
+  font-weight: 600;
+  font-size: .92rem;
+  text-align: start;
+  box-shadow: none;
+}
+.profile-menu-list button svg { color: var(--ink-3); flex: none; }
+.profile-menu-list button:hover:not(:disabled) { background: var(--surface-2); }
+.profile-menu-list button.current { background: var(--turf-dim); }
+.profile-menu-list button.current svg { color: var(--turf); }
+.profile-menu-check { margin-inline-start: auto; }
+
+/* Mode strip now lives in App for both admin and org management */
+.admin-mode-bar { margin-bottom: var(--space-4); }
+.admin-mode-bar strong { margin-inline-start: auto; }
+.admin-mode-bar strong + .admin-mode-exit { margin-inline-start: 12px; }
+.admin-mode-bar span + .admin-mode-exit { margin-inline-start: auto; }
+.admin-mode-exit {
+  min-height: 30px;
+  padding: 4px 12px;
+  border-radius: var(--r-pill);
+  border: 1px solid rgba(255,255,255,.25);
+  background: rgba(255,255,255,.1);
+  color: inherit;
+  font-size: .8rem;
+  font-weight: 600;
+  box-shadow: none;
+}
+.admin-mode-exit:hover:not(:disabled) { background: rgba(255,255,255,.18); }

@@ -6,6 +6,7 @@ import crypto from "node:crypto";
 import path from "node:path";
 import fs from "node:fs";
 import multer from "multer";
+import webpush from "web-push";
 import { parsePhoneNumberFromString } from "libphonenumber-js/max";
 import { query, withClient } from "./db.js";
 
@@ -17,6 +18,17 @@ const port = Number(process.env.API_PORT || 3015);
 app.use(cors({ origin: process.env.WEB_ORIGIN || true }));
 app.use(express.json());
 app.use(morgan("dev"));
+
+// Admin push notifications (see db/migrations/013_push_notifications.sql).
+// Keys are generated once and live in the deploy environment, same as every
+// other secret this app already keeps in compose.yml rather than a vault.
+if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+  webpush.setVapidDetails(
+    process.env.VAPID_SUBJECT || "mailto:admin@example.com",
+    process.env.VAPID_PUBLIC_KEY,
+    process.env.VAPID_PRIVATE_KEY
+  );
+}
 
 // Profile photos, uploaded during signup or from the profile screen. Served
 // under /api/uploads so the existing /api/ reverse-proxy rule covers it too —
@@ -178,6 +190,84 @@ async function assertOrgOwns(table, id, orgId) {
 
 function requireRole(user, roles) {
   return user && roles.includes(user.role);
+}
+
+// Flips is_monthly_member on BOTH players and player_organizations — the
+// same dual-write PATCH /api/admin/players/:playerId does inline (see below)
+// — for one or more players in one org at once. Plain UPDATE, not an upsert:
+// every active player already has a player_organizations row from signup.
+// Used only by the monthly-subscription flows below, which never touch any
+// other player field in the same statement.
+async function setMonthlyMembership(client, orgId, playerIds, value) {
+  if (!playerIds.length) return;
+  await client.query(
+    `UPDATE players SET is_monthly_member = $3 WHERE org_id = $1 AND id = ANY($2::uuid[])`,
+    [orgId, playerIds, value]
+  );
+  await client.query(
+    `UPDATE player_organizations SET is_monthly_member = $3 WHERE org_id = $1 AND player_id = ANY($2::uuid[])`,
+    [orgId, playerIds, value]
+  );
+}
+
+// Every Sunday in a given calendar month, as 'YYYY-MM-DD' strings. Pure UTC
+// calendar math (no timezone) — a subscription's match_dates are plain
+// calendar dates, same as matches.match_date, never a real-world instant.
+function sundaysInMonth(year, month) {
+  const dates = [];
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  for (let day = 1; day <= daysInMonth; day++) {
+    const date = new Date(Date.UTC(year, month - 1, day));
+    if (date.getUTCDay() === 0) dates.push(date.toISOString().slice(0, 10));
+  }
+  return dates;
+}
+
+// No stored total — always recomputed from the current dates/price so it
+// can never drift from what's actually shown.
+function subscriptionTotal(row) {
+  return (Array.isArray(row.match_dates) ? row.match_dates.length : 0) * row.price_per_match;
+}
+
+// Who a push notification actually reaches. "player"/single-player targeting
+// is just 'custom' with a one-element id list — no separate branch needed.
+async function resolveNotificationAudience(orgId, audienceType, params = {}) {
+  if (audienceType === "all") {
+    const { rows } = await query(
+      "SELECT id, full_name, avatar_url FROM players WHERE org_id = $1 AND status = 'active' ORDER BY full_name",
+      [orgId]
+    );
+    return rows;
+  }
+  if (audienceType === "members" || audienceType === "one_timers") {
+    const { rows } = await query(
+      "SELECT id, full_name, avatar_url FROM players WHERE org_id = $1 AND status = 'active' AND is_monthly_member = $2 ORDER BY full_name",
+      [orgId, audienceType === "members"]
+    );
+    return rows;
+  }
+  if (audienceType === "match") {
+    if (!params.matchId) return [];
+    const { rows } = await query(
+      `SELECT p.id, p.full_name, p.avatar_url
+       FROM registrations r
+       JOIN players p ON p.id = r.player_id
+       WHERE r.match_id = $1 AND r.org_id = $2 AND r.status IN ('attending', 'payment_pending', 'standby')
+       ORDER BY p.full_name`,
+      [params.matchId, orgId]
+    );
+    return rows;
+  }
+  if (audienceType === "custom") {
+    const ids = Array.isArray(params.playerIds) ? params.playerIds : [];
+    if (!ids.length) return [];
+    const { rows } = await query(
+      "SELECT id, full_name, avatar_url FROM players WHERE org_id = $1 AND status = 'active' AND id = ANY($2::uuid[]) ORDER BY full_name",
+      [orgId, ids]
+    );
+    return rows;
+  }
+  return [];
 }
 
 async function getActiveMatch(orgId) {
@@ -488,7 +578,7 @@ app.get("/api/bootstrap", asyncRoute(async (_req, res) => {
   const user = await currentUser(_req);
   if (!user) return res.status(401).json({ error: "נדרשת התחברות" });
   const orgId = user.org_id;
-  const [players, settings, activeMatch] = await Promise.all([
+  const [players, settings, activeMatch, openSubscription] = await Promise.all([
     query(
       `SELECT ${publicPlayerSelect("players")} FROM players
        WHERE org_id = $1 AND status IN ('active', 'pending')
@@ -496,16 +586,52 @@ app.get("/api/bootstrap", asyncRoute(async (_req, res) => {
       [orgId]
     ),
     query("SELECT key, value FROM settings WHERE org_id = $1", [orgId]),
-    getActiveMatch(orgId)
+    getActiveMatch(orgId),
+    // The latest PUBLISHED window — a newly published month naturally
+    // supersedes the old one here, no expiry field needed.
+    query(
+      `SELECT * FROM monthly_subscriptions WHERE org_id = $1 AND status = 'open' ORDER BY year DESC, month DESC LIMIT 1`,
+      [orgId]
+    )
   ]);
   const bundle = activeMatch ? await getMatchBundle(activeMatch.id, false, orgId) : null;
+  let subscription = null;
+  if (openSubscription.rows[0]) {
+    const sub = openSubscription.rows[0];
+    const { rows: mySignupRows } = await query(
+      "SELECT paid, requested_at FROM subscription_signups WHERE subscription_id = $1 AND player_id = $2",
+      [sub.id, user.id]
+    );
+    subscription = {
+      id: sub.id,
+      year: sub.year,
+      month: sub.month,
+      price_per_match: sub.price_per_match,
+      match_dates: sub.match_dates,
+      total_price: subscriptionTotal(sub),
+      mySignup: mySignupRows[0] || null
+    };
+  }
+  // So a player has somewhere to see a notification again after tapping
+  // the OS push (or if they never enabled push at all).
+  const { rows: notifications } = await query(
+    `SELECT n.id, n.title, n.body, n.created_at
+     FROM notification_recipients nr
+     JOIN notification_log n ON n.id = nr.notification_id
+     WHERE nr.player_id = $1
+     ORDER BY n.created_at DESC
+     LIMIT 20`,
+    [user.id]
+  );
   res.json({
     user,
     organization: { id: orgId, name: user.org_name, slug: user.org_slug },
     organizations: user.organizations || [],
     players: players.rows,
     settings: Object.fromEntries(settings.rows.map((row) => [row.key, row.value])),
-    activeMatch: bundle
+    activeMatch: bundle,
+    subscription,
+    notifications
   });
 }));
 
@@ -648,7 +774,8 @@ app.get("/api/admin", asyncRoute(async (_req, res) => {
     : await getActiveMatch(orgId);
   if (requestedMatchId && !selectedMatch) return res.status(404).json({ error: "מחזור לא נמצא" });
   if (selectedMatch) await rebalanceRegistrationQueue(selectedMatch.id);
-  const [pendingPlayers, payments, cancellations, players, audit, fixtures, pendingJoinRequests, pendingCancellations, pendingPayments, settings, orgRow, registrationQuestions] = await Promise.all([
+  const requestedSubscriptionId = _req.query.subscriptionId;
+  const [pendingPlayers, payments, cancellations, players, audit, fixtures, pendingJoinRequests, pendingCancellations, pendingPayments, settings, orgRow, registrationQuestions, subscriptions, notifications, scheduledNotifications] = await Promise.all([
     query("SELECT COUNT(*)::int AS count FROM players WHERE org_id = $1 AND status = 'pending'", [orgId]),
     query("SELECT COUNT(*)::int AS count FROM registrations WHERE org_id = $1 AND status = 'payment_pending'", [orgId]),
     query("SELECT COUNT(*)::int AS count FROM registrations WHERE org_id = $1 AND status = 'cancelled' AND cancellation_review IS NULL", [orgId]),
@@ -709,7 +836,24 @@ app.get("/api/admin", asyncRoute(async (_req, res) => {
     // player fields) — needed here so an org admin can share their own
     // invite link without a platform admin having to hand it to them.
     query("SELECT join_code FROM organizations WHERE id = $1", [orgId]),
-    query("SELECT * FROM registration_questions WHERE org_id = $1 ORDER BY sort_order, created_at", [orgId])
+    query("SELECT * FROM registration_questions WHERE org_id = $1 ORDER BY sort_order, created_at", [orgId]),
+    // Light list for the history row — full detail (signups, computed
+    // totals) only for the one selected below, via subscriptionWithSignups.
+    query(
+      `SELECT id, year, month, status, price_per_match, jsonb_array_length(match_dates) AS day_count, published_at
+       FROM monthly_subscriptions WHERE org_id = $1 ORDER BY year DESC, month DESC LIMIT 12`,
+      [orgId]
+    ),
+    query(
+      `SELECT n.*, p.full_name AS sender_name
+       FROM notification_log n LEFT JOIN players p ON p.id = n.sender_id
+       WHERE n.org_id = $1 ORDER BY n.created_at DESC LIMIT 20`,
+      [orgId]
+    ),
+    query(
+      `SELECT * FROM scheduled_notifications WHERE org_id = $1 ORDER BY created_at DESC`,
+      [orgId]
+    )
   ]);
   // Teams left short of players_per_team — usually because someone cancelled
   // after the lineups were built. The admin needs to slot in a replacement.
@@ -738,6 +882,14 @@ app.get("/api/admin", asyncRoute(async (_req, res) => {
     }
   }
 
+  // Default to the newest draft (what an admin mid-setup wants to come back
+  // to), else the newest one overall — same "most recently relevant" spirit
+  // as getActiveMatch above.
+  const selectedSubscriptionId = requestedSubscriptionId
+    || subscriptions.rows.find((row) => row.status === "draft")?.id
+    || subscriptions.rows[0]?.id
+    || null;
+
   res.json({
     organization: { id: orgId, name: _req.user.org_name, slug: _req.user.org_slug, join_code: orgRow.rows[0]?.join_code },
     pendingJoinRequests: pendingJoinRequests.rows,
@@ -754,7 +906,11 @@ app.get("/api/admin", asyncRoute(async (_req, res) => {
     players: players.rows,
     audit: audit.rows,
     settings: Object.fromEntries(settings.rows.map((row) => [row.key, row.value])),
-    registrationQuestions: registrationQuestions.rows
+    registrationQuestions: registrationQuestions.rows,
+    subscriptions: subscriptions.rows,
+    subscription: selectedSubscriptionId ? await subscriptionWithSignups(selectedSubscriptionId, orgId) : null,
+    notifications: notifications.rows,
+    scheduledNotifications: scheduledNotifications.rows
   });
 }));
 
@@ -772,6 +928,361 @@ app.patch("/api/admin/settings/:key", asyncRoute(async (req, res) => {
     [orgId, key, JSON.stringify(value)]
   );
   res.json({ key, value });
+}));
+
+// ---- Monthly subscription billing cycle ----
+// See db/migrations/012_monthly_subscriptions.sql for the full rationale.
+// Total and amount-due are never stored — always days*price and
+// total-credits, computed here and sent to the client already resolved.
+
+async function subscriptionWithSignups(subscriptionId, orgId) {
+  const { rows } = await query(
+    "SELECT * FROM monthly_subscriptions WHERE id = $1 AND org_id = $2",
+    [subscriptionId, orgId]
+  );
+  const subscription = rows[0];
+  if (!subscription) return null;
+  const total = subscriptionTotal(subscription);
+  const { rows: signups } = await query(
+    `SELECT s.id, s.player_id, s.paid, s.paid_at, s.requested_at,
+            p.full_name AS player_name, p.avatar_url AS player_avatar_url, p.phone AS player_phone, p.credits
+     FROM subscription_signups s
+     JOIN players p ON p.id = s.player_id
+     WHERE s.subscription_id = $1
+     ORDER BY s.requested_at ASC`,
+    [subscriptionId]
+  );
+  return {
+    ...subscription,
+    total_price: total,
+    // players.credits counts free MATCHES (see db/schema.sql), not shekels —
+    // each credit knocks one price_per_match off what's owed, not ₪1.
+    signups: signups.map((row) => ({
+      ...row,
+      amount_due: Math.max(total - row.credits * subscription.price_per_match, 0)
+    }))
+  };
+}
+
+app.post("/api/admin/subscriptions", asyncRoute(async (req, res) => {
+  const { year, month, pricePerMatch } = req.body;
+  const orgId = req.user.org_id;
+  if (!year || !month) return res.status(400).json({ error: "חסר חודש/שנה" });
+  const { rows: existing } = await query(
+    "SELECT id FROM monthly_subscriptions WHERE org_id = $1 AND year = $2 AND month = $3",
+    [orgId, year, month]
+  );
+  if (existing[0]) return res.status(409).json({ error: "כבר קיים מנוי לחודש הזה" });
+  const { rows } = await query(
+    `INSERT INTO monthly_subscriptions (org_id, year, month, price_per_match, match_dates)
+     VALUES ($1, $2, $3, $4, $5)
+     RETURNING *`,
+    [orgId, year, month, Number(pricePerMatch) || 39, JSON.stringify(sundaysInMonth(year, month))]
+  );
+  await query(
+    `INSERT INTO audit_log (org_id, actor_id, action, entity_type, entity_id, after_value)
+     VALUES ($1, $2, 'admin_create_subscription', 'monthly_subscription', $3, $4)`,
+    [orgId, req.user.id, rows[0].id, JSON.stringify(rows[0])]
+  );
+  res.status(201).json(await subscriptionWithSignups(rows[0].id, orgId));
+}));
+
+app.patch("/api/admin/subscriptions/:id", asyncRoute(async (req, res) => {
+  const { id } = req.params;
+  const { pricePerMatch, matchDates } = req.body;
+  const orgId = req.user.org_id;
+  const { rows: before } = await query("SELECT * FROM monthly_subscriptions WHERE id = $1 AND org_id = $2", [id, orgId]);
+  if (!before[0]) return res.status(404).json({ error: "מנוי לא נמצא" });
+  const { rows } = await query(
+    `UPDATE monthly_subscriptions SET
+       price_per_match = COALESCE($3, price_per_match),
+       match_dates = COALESCE($4, match_dates)
+     WHERE id = $1 AND org_id = $2
+     RETURNING *`,
+    [id, orgId, pricePerMatch === undefined ? null : Number(pricePerMatch), matchDates === undefined ? null : JSON.stringify(matchDates)]
+  );
+  await query(
+    `INSERT INTO audit_log (org_id, actor_id, action, entity_type, entity_id, before_value, after_value)
+     VALUES ($1, $2, 'admin_update_subscription', 'monthly_subscription', $3, $4, $5)`,
+    [orgId, req.user.id, id, JSON.stringify(before[0]), JSON.stringify(rows[0])]
+  );
+  res.json(await subscriptionWithSignups(id, orgId));
+}));
+
+app.delete("/api/admin/subscriptions/:id", asyncRoute(async (req, res) => {
+  const { id } = req.params;
+  const orgId = req.user.org_id;
+  const { rows: before } = await query("SELECT * FROM monthly_subscriptions WHERE id = $1 AND org_id = $2", [id, orgId]);
+  if (!before[0]) return res.status(404).json({ error: "מנוי לא נמצא" });
+  if (before[0].status !== "draft") return res.status(400).json({ error: "אפשר למחוק רק טיוטה שטרם פורסמה" });
+  await query("DELETE FROM monthly_subscriptions WHERE id = $1 AND org_id = $2", [id, orgId]);
+  await query(
+    `INSERT INTO audit_log (org_id, actor_id, action, entity_type, entity_id, before_value)
+     VALUES ($1, $2, 'admin_delete_subscription', 'monthly_subscription', $3, $4)`,
+    [orgId, req.user.id, id, JSON.stringify(before[0])]
+  );
+  res.status(204).end();
+}));
+
+// Publishing a month is also the moment the PREVIOUS month's slate gets
+// cleared: anyone still is_monthly_member who never paid for the previous
+// published window loses membership here. There is no scheduler in this
+// app — this reset is a deliberate side effect of the admin's own action,
+// not a background job.
+app.post("/api/admin/subscriptions/:id/publish", asyncRoute(async (req, res) => {
+  const { id } = req.params;
+  const orgId = req.user.org_id;
+  const { rows: before } = await query("SELECT * FROM monthly_subscriptions WHERE id = $1 AND org_id = $2", [id, orgId]);
+  if (!before[0]) return res.status(404).json({ error: "מנוי לא נמצא" });
+  if (before[0].status !== "draft") return res.status(400).json({ error: "המנוי כבר פורסם" });
+
+  const { rows: updatedRows } = await query(
+    `UPDATE monthly_subscriptions SET status = 'open', published_at = now() WHERE id = $1 AND org_id = $2 RETURNING *`,
+    [id, orgId]
+  );
+  const updated = updatedRows[0];
+
+  const { rows: prevRows } = await query(
+    `SELECT id FROM monthly_subscriptions
+     WHERE org_id = $1 AND status = 'open' AND id <> $2 AND (year, month) < ($3, $4)
+     ORDER BY year DESC, month DESC LIMIT 1`,
+    [orgId, id, updated.year, updated.month]
+  );
+
+  let resetIds = [];
+  if (prevRows[0]) {
+    const { rows: nonPayers } = await query(
+      `SELECT p.id FROM players p
+       WHERE p.org_id = $1 AND p.is_monthly_member = true
+         AND NOT EXISTS (
+           SELECT 1 FROM subscription_signups s
+           WHERE s.subscription_id = $2 AND s.player_id = p.id AND s.paid = true
+         )`,
+      [orgId, prevRows[0].id]
+    );
+    resetIds = nonPayers.map((row) => row.id);
+    await withClient(async (client) => {
+      await setMonthlyMembership(client, orgId, resetIds, false);
+      if (resetIds.length) {
+        await client.query(
+          `INSERT INTO audit_log (org_id, actor_id, action, entity_type, entity_id, after_value)
+           VALUES ($1, $2, 'subscription_reset_non_payers', 'monthly_subscription', $3, $4)`,
+          [orgId, req.user.id, prevRows[0].id, JSON.stringify({ resetPlayerIds: resetIds })]
+        );
+      }
+    });
+  }
+
+  await query(
+    `INSERT INTO audit_log (org_id, actor_id, action, entity_type, entity_id, after_value)
+     VALUES ($1, $2, 'admin_publish_subscription', 'monthly_subscription', $3, $4)`,
+    [orgId, req.user.id, id, JSON.stringify(updated)]
+  );
+  res.json({ subscription: await subscriptionWithSignups(id, orgId), resetCount: resetIds.length });
+}));
+
+// Pulls a published month back to draft: hidden from players again, no new
+// sign-ups accepted, but every sign-up/payment already on it is untouched —
+// re-publishing later picks up right where it left off. Does not reverse the
+// membership reset that may have happened when THIS was originally
+// published (that reset was about an earlier month, not this one).
+app.post("/api/admin/subscriptions/:id/unpublish", asyncRoute(async (req, res) => {
+  const { id } = req.params;
+  const orgId = req.user.org_id;
+  const { rows: before } = await query("SELECT * FROM monthly_subscriptions WHERE id = $1 AND org_id = $2", [id, orgId]);
+  if (!before[0]) return res.status(404).json({ error: "מנוי לא נמצא" });
+  if (before[0].status !== "open") return res.status(400).json({ error: "המנוי אינו פורסם" });
+  await query(
+    `UPDATE monthly_subscriptions SET status = 'draft', published_at = NULL WHERE id = $1 AND org_id = $2`,
+    [id, orgId]
+  );
+  await query(
+    `INSERT INTO audit_log (org_id, actor_id, action, entity_type, entity_id, before_value)
+     VALUES ($1, $2, 'admin_unpublish_subscription', 'monthly_subscription', $3, $4)`,
+    [orgId, req.user.id, id, JSON.stringify(before[0])]
+  );
+  res.json(await subscriptionWithSignups(id, orgId));
+}));
+
+app.patch("/api/admin/subscriptions/:subId/signups/:signupId", asyncRoute(async (req, res) => {
+  const { subId, signupId } = req.params;
+  const { paid } = req.body;
+  const orgId = req.user.org_id;
+  const { rows: before } = await query(
+    "SELECT * FROM subscription_signups WHERE id = $1 AND subscription_id = $2 AND org_id = $3",
+    [signupId, subId, orgId]
+  );
+  if (!before[0]) return res.status(404).json({ error: "הרשמה לא נמצאה" });
+  await withClient(async (client) => {
+    await client.query(
+      `UPDATE subscription_signups SET paid = $2, paid_at = CASE WHEN $2 THEN now() ELSE NULL END WHERE id = $1`,
+      [signupId, Boolean(paid)]
+    );
+    // Marking paid IS what grants monthly membership, and unmarking IS what
+    // revokes it — see the migration's rationale — so this stays symmetric
+    // with the true direction rather than leaving a stale membership behind.
+    await setMonthlyMembership(client, orgId, [before[0].player_id], Boolean(paid));
+    await client.query(
+      `INSERT INTO audit_log (org_id, actor_id, action, entity_type, entity_id, after_value)
+       VALUES ($1, $2, $3, 'subscription_signup', $4, $5)`,
+      [orgId, req.user.id, paid ? "admin_mark_signup_paid" : "admin_mark_signup_unpaid", signupId, JSON.stringify({ playerId: before[0].player_id, subId })]
+    );
+  });
+  res.json(await subscriptionWithSignups(subId, orgId));
+}));
+
+app.delete("/api/admin/subscriptions/:subId/signups/:signupId", asyncRoute(async (req, res) => {
+  const { subId, signupId } = req.params;
+  const orgId = req.user.org_id;
+  const { rows: before } = await query(
+    "SELECT * FROM subscription_signups WHERE id = $1 AND subscription_id = $2 AND org_id = $3",
+    [signupId, subId, orgId]
+  );
+  if (!before[0]) return res.status(404).json({ error: "הרשמה לא נמצאה" });
+  await query("DELETE FROM subscription_signups WHERE id = $1", [signupId]);
+  await query(
+    `INSERT INTO audit_log (org_id, actor_id, action, entity_type, entity_id, before_value)
+     VALUES ($1, $2, 'admin_delete_subscription_signup', 'subscription_signup', $3, $4)`,
+    [orgId, req.user.id, signupId, JSON.stringify(before[0])]
+  );
+  res.json(await subscriptionWithSignups(subId, orgId));
+}));
+
+// ---- Push notifications ----
+// Reaches every player's device, unlike the rest of /api/admin (which
+// stats_admin shares full access to) — worth the one extra role check.
+function requireFullAdmin(req, res) {
+  if (req.user.role !== "admin") {
+    res.status(403).json({ error: "רק אדמין ראשי יכול לשלוח התראות" });
+    return false;
+  }
+  return true;
+}
+
+app.post("/api/admin/notifications/preview", asyncRoute(async (req, res) => {
+  if (!requireFullAdmin(req, res)) return;
+  const { audienceType, audienceParams } = req.body;
+  const players = await resolveNotificationAudience(req.user.org_id, audienceType, audienceParams);
+  res.json({ count: players.length, sample: players.slice(0, 6) });
+}));
+
+// Shared by the immediate-send route and the scheduler tick below — sends
+// the push, logs it, and records exactly who was targeted (notification_recipients
+// covers the WHOLE audience, not just those with a live push subscription,
+// so a player can see it in-app even without push enabled).
+async function deliverNotification(orgId, senderId, players, title, body, audienceType, audienceLabel, actionName = "admin_send_notification") {
+  const { rows: subs } = await query(
+    "SELECT id, endpoint, p256dh, auth FROM push_subscriptions WHERE player_id = ANY($1::uuid[])",
+    [players.map((p) => p.id)]
+  );
+
+  const payload = JSON.stringify({ title: title.trim(), body: body.trim() });
+  const results = await Promise.allSettled(
+    subs.map((sub) =>
+      webpush.sendNotification(
+        { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+        payload
+      ).catch((error) => {
+        // A device that revoked permission or uninstalled — clean it up
+        // rather than retrying it forever on every future send.
+        if (error.statusCode === 404 || error.statusCode === 410) {
+          return query("DELETE FROM push_subscriptions WHERE id = $1", [sub.id]).then(() => { throw error; });
+        }
+        throw error;
+      })
+    )
+  );
+  const sentCount = results.filter((r) => r.status === "fulfilled").length;
+  const failedCount = results.length - sentCount;
+
+  const { rows: logRows } = await query(
+    `INSERT INTO notification_log (org_id, sender_id, title, body, audience_type, audience_label, recipient_count, sent_count, failed_count)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+     RETURNING *`,
+    [orgId, senderId, title.trim(), body.trim(), audienceType, audienceLabel || audienceType, players.length, sentCount, failedCount]
+  );
+  await query(
+    `INSERT INTO notification_recipients (notification_id, player_id)
+     SELECT $1, unnest($2::uuid[])`,
+    [logRows[0].id, players.map((p) => p.id)]
+  );
+  await query(
+    `INSERT INTO audit_log (org_id, actor_id, action, entity_type, entity_id, after_value)
+     VALUES ($1, $2, $3, 'notification_log', $4, $5)`,
+    [orgId, senderId, actionName, logRows[0].id, JSON.stringify({ audienceType, audienceLabel, recipientCount: players.length, sentCount, failedCount })]
+  );
+  return { recipientCount: players.length, sentCount, failedCount, log: logRows[0] };
+}
+
+app.post("/api/admin/notifications/send", asyncRoute(async (req, res) => {
+  if (!requireFullAdmin(req, res)) return;
+  const { audienceType, audienceParams, title, body, audienceLabel } = req.body;
+  const orgId = req.user.org_id;
+  if (!title?.trim() || !body?.trim()) return res.status(400).json({ error: "חסרה כותרת או תוכן להודעה" });
+  const players = await resolveNotificationAudience(orgId, audienceType, audienceParams);
+  if (!players.length) return res.status(400).json({ error: "אין נמענים להודעה הזו" });
+  const result = await deliverNotification(orgId, req.user.id, players, title, body, audienceType, audienceLabel);
+  res.status(201).json(result);
+}));
+
+// ---- Scheduled & recurring notifications ----
+// See db/migrations/015_scheduled_notifications.sql for the full rationale.
+
+app.post("/api/admin/notifications/schedule", asyncRoute(async (req, res) => {
+  if (!requireFullAdmin(req, res)) return;
+  const { title, body, audienceType, audienceParams, audienceLabel, sendAt, repeatEveryHours } = req.body;
+  const orgId = req.user.org_id;
+  if (!title?.trim() || !body?.trim()) return res.status(400).json({ error: "חסרה כותרת או תוכן להודעה" });
+  const nextSendAt = new Date(sendAt);
+  if (Number.isNaN(nextSendAt.getTime())) return res.status(400).json({ error: "תאריך/שעה לא תקינים" });
+  const { rows } = await query(
+    `INSERT INTO scheduled_notifications (org_id, sender_id, title, body, audience_type, audience_params, audience_label, next_send_at, repeat_every_hours)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+     RETURNING *`,
+    [orgId, req.user.id, title.trim(), body.trim(), audienceType, JSON.stringify(audienceParams || {}), audienceLabel || audienceType, nextSendAt.toISOString(), repeatEveryHours || null]
+  );
+  await query(
+    `INSERT INTO audit_log (org_id, actor_id, action, entity_type, entity_id, after_value)
+     VALUES ($1, $2, 'admin_schedule_notification', 'scheduled_notification', $3, $4)`,
+    [orgId, req.user.id, rows[0].id, JSON.stringify(rows[0])]
+  );
+  res.status(201).json(rows[0]);
+}));
+
+app.patch("/api/admin/notifications/schedule/:id", asyncRoute(async (req, res) => {
+  if (!requireFullAdmin(req, res)) return;
+  const { id } = req.params;
+  const { active, sendAt, repeatEveryHours } = req.body;
+  const orgId = req.user.org_id;
+  const { rows: before } = await query("SELECT * FROM scheduled_notifications WHERE id = $1 AND org_id = $2", [id, orgId]);
+  if (!before[0]) return res.status(404).json({ error: "התזמון לא נמצא" });
+  const nextSendAt = sendAt === undefined ? null : new Date(sendAt);
+  if (nextSendAt && Number.isNaN(nextSendAt.getTime())) return res.status(400).json({ error: "תאריך/שעה לא תקינים" });
+  const { rows } = await query(
+    `UPDATE scheduled_notifications SET
+       active = COALESCE($3, active),
+       next_send_at = COALESCE($4, next_send_at),
+       repeat_every_hours = CASE WHEN $5 THEN $6 ELSE repeat_every_hours END
+     WHERE id = $1 AND org_id = $2
+     RETURNING *`,
+    [id, orgId, active === undefined ? null : active, nextSendAt ? nextSendAt.toISOString() : null, repeatEveryHours !== undefined, repeatEveryHours || null]
+  );
+  res.json(rows[0]);
+}));
+
+app.delete("/api/admin/notifications/schedule/:id", asyncRoute(async (req, res) => {
+  if (!requireFullAdmin(req, res)) return;
+  const { id } = req.params;
+  const orgId = req.user.org_id;
+  const { rows: before } = await query("SELECT * FROM scheduled_notifications WHERE id = $1 AND org_id = $2", [id, orgId]);
+  if (!before[0]) return res.status(404).json({ error: "התזמון לא נמצא" });
+  await query("DELETE FROM scheduled_notifications WHERE id = $1", [id]);
+  await query(
+    `INSERT INTO audit_log (org_id, actor_id, action, entity_type, entity_id, before_value)
+     VALUES ($1, $2, 'admin_cancel_scheduled_notification', 'scheduled_notification', $3, $4)`,
+    [orgId, req.user.id, id, JSON.stringify(before[0])]
+  );
+  res.status(204).end();
 }));
 
 const REGISTRATION_QUESTION_TYPES = ["scale", "dropdown", "radio", "multiselect", "text"];
@@ -2252,6 +2763,84 @@ app.post("/api/matches/:matchId/cancel", asyncRoute(async (req, res) => {
   res.json(await getMatchBundle(matchId, false, orgId));
 }));
 
+// ---- Player-facing monthly subscription signup ----
+// Unauthenticated-but-org-scoped, same as the match register/cancel routes
+// above: playerId travels in the body rather than through currentUser(req).
+
+app.post("/api/subscriptions/:id/signup", asyncRoute(async (req, res) => {
+  const { id } = req.params;
+  const { playerId } = req.body;
+  const { rows: subRows } = await query("SELECT * FROM monthly_subscriptions WHERE id = $1", [id]);
+  const subscription = subRows[0];
+  if (!subscription) return res.status(404).json({ error: "מנוי לא נמצא" });
+  const { rows: playerRows } = await query(
+    "SELECT id FROM players WHERE id = $1 AND org_id = $2 AND status = 'active'",
+    [playerId, subscription.org_id]
+  );
+  if (!playerRows[0]) return res.status(404).json({ error: "שחקן לא נמצא" });
+  if (subscription.status !== "open") return res.status(400).json({ error: "המנוי לא פתוח להרשמה" });
+  await query(
+    `INSERT INTO subscription_signups (org_id, subscription_id, player_id)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (subscription_id, player_id) DO NOTHING`,
+    [subscription.org_id, id, playerId]
+  );
+  await query(
+    `INSERT INTO audit_log (org_id, actor_id, action, entity_type, entity_id)
+     VALUES ($1, $2, 'player_subscribe', 'monthly_subscription', $3)`,
+    [subscription.org_id, playerId, id]
+  );
+  res.status(201).json({ ok: true });
+}));
+
+app.post("/api/subscriptions/:id/cancel-signup", asyncRoute(async (req, res) => {
+  const { id } = req.params;
+  const { playerId } = req.body;
+  const { rows: signupRows } = await query(
+    "SELECT * FROM subscription_signups WHERE subscription_id = $1 AND player_id = $2",
+    [id, playerId]
+  );
+  const signup = signupRows[0];
+  if (!signup) return res.status(404).json({ error: "הרשמה לא נמצאה" });
+  if (signup.paid) return res.status(400).json({ error: "כבר סומן כשולם — יש לפנות למנהל" });
+  await query("DELETE FROM subscription_signups WHERE id = $1", [signup.id]);
+  await query(
+    `INSERT INTO audit_log (org_id, actor_id, action, entity_type, entity_id)
+     VALUES ($1, $2, 'player_cancel_subscription_signup', 'monthly_subscription', $3)`,
+    [signup.org_id, playerId, id]
+  );
+  res.json({ ok: true });
+}));
+
+// ---- Push notification opt-in ----
+// A player can have several subscriptions (phone, laptop, ...) — endpoint is
+// globally unique per device/browser, so re-subscribing upserts cleanly.
+
+app.post("/api/push/subscribe", asyncRoute(async (req, res) => {
+  const { playerId, subscription } = req.body;
+  if (!subscription?.endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth) {
+    return res.status(400).json({ error: "מנוי התראות לא תקין" });
+  }
+  const { rows: playerRows } = await query("SELECT org_id FROM players WHERE id = $1 AND status = 'active'", [playerId]);
+  if (!playerRows[0]) return res.status(404).json({ error: "שחקן לא נמצא" });
+  await query(
+    `INSERT INTO push_subscriptions (org_id, player_id, endpoint, p256dh, auth, user_agent)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     ON CONFLICT (endpoint) DO UPDATE SET
+       player_id = EXCLUDED.player_id, org_id = EXCLUDED.org_id,
+       p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth, user_agent = EXCLUDED.user_agent`,
+    [playerRows[0].org_id, playerId, subscription.endpoint, subscription.keys.p256dh, subscription.keys.auth, req.header("user-agent") || null]
+  );
+  res.status(201).json({ ok: true });
+}));
+
+app.post("/api/push/unsubscribe", asyncRoute(async (req, res) => {
+  const { endpoint } = req.body;
+  if (!endpoint) return res.status(400).json({ error: "חסר endpoint" });
+  await query("DELETE FROM push_subscriptions WHERE endpoint = $1", [endpoint]);
+  res.json({ ok: true });
+}));
+
 // ---- Player-recorded results ----
 // A player may record results only for a pitch they are actually on — checked
 // here, not just hidden in the UI, same principle as the results/goals
@@ -2471,6 +3060,49 @@ app.use((error, _req, res, _next) => {
   console.error(error);
   res.status(500).json({ error: error.message });
 });
+
+// This app has no cron/worker process (pm2 only runs the api+web
+// processes) — a scheduled or recurring notification's "is it due yet"
+// check happens right here, in-process, once a minute. Adding the interval
+// to the row's OWN next_send_at (not to now()) after each send keeps a
+// recurring schedule's cadence exact rather than drifting by however late
+// a given tick happened to run.
+let notificationSchedulerRunning = false;
+async function processScheduledNotifications() {
+  if (notificationSchedulerRunning) return;
+  notificationSchedulerRunning = true;
+  try {
+    const { rows: due } = await query(
+      "SELECT * FROM scheduled_notifications WHERE active = true AND next_send_at <= now()"
+    );
+    for (const row of due) {
+      try {
+        const players = await resolveNotificationAudience(row.org_id, row.audience_type, row.audience_params);
+        if (players.length) {
+          await deliverNotification(
+            row.org_id, row.sender_id, players, row.title, row.body,
+            row.audience_type, row.audience_label, "scheduled_send_notification"
+          );
+        }
+        if (row.repeat_every_hours) {
+          await query(
+            "UPDATE scheduled_notifications SET next_send_at = next_send_at + ($2 || ' hours')::interval, last_sent_at = now() WHERE id = $1",
+            [row.id, row.repeat_every_hours]
+          );
+        } else {
+          await query("UPDATE scheduled_notifications SET active = false, last_sent_at = now() WHERE id = $1", [row.id]);
+        }
+      } catch (error) {
+        // One bad row (e.g. a stale audience reference) shouldn't block
+        // every other due notification in the same tick.
+        console.error("scheduled notification failed", row.id, error);
+      }
+    }
+  } finally {
+    notificationSchedulerRunning = false;
+  }
+}
+setInterval(processScheduledNotifications, 60_000);
 
 app.listen(port, "0.0.0.0", () => {
   console.log(`Badat API listening on http://0.0.0.0:${port}`);

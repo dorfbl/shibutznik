@@ -7,6 +7,7 @@ CREATE TYPE player_status AS ENUM ('pending', 'active', 'inactive', 'blocked');
 CREATE TYPE match_status AS ENUM ('draft', 'teams_draft', 'teams_published', 'finished', 'stats_published');
 CREATE TYPE registration_status AS ENUM ('attending', 'not_attending', 'standby', 'payment_pending', 'cancelled');
 CREATE TYPE registration_question_type AS ENUM ('scale', 'dropdown', 'radio', 'multiselect', 'text');
+CREATE TYPE monthly_subscription_status AS ENUM ('draft', 'open');
 
 CREATE TABLE organizations (
   id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -219,6 +220,93 @@ CREATE TABLE player_organizations (
   PRIMARY KEY (player_id, org_id)
 );
 
+-- The monthly subscription billing cycle: an admin picks the month's play
+-- days (defaulting to every Sunday) and a price per match, players opt in,
+-- payment is tracked manually (no payment link stored here), and
+-- players.is_monthly_member becomes a consequence of paying that month's
+-- subscription rather than a flag admins maintain by hand. No stored total
+-- or amount-due — both are always computed live (days x price, and total
+-- minus players.credits).
+CREATE TABLE monthly_subscriptions (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id          UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  year            SMALLINT NOT NULL,
+  month           SMALLINT NOT NULL CHECK (month BETWEEN 1 AND 12),
+  price_per_match INTEGER NOT NULL DEFAULT 39 CHECK (price_per_match >= 0),
+  match_dates     JSONB NOT NULL DEFAULT '[]',
+  status          monthly_subscription_status NOT NULL DEFAULT 'draft',
+  published_at    TIMESTAMPTZ,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (org_id, year, month)
+);
+
+CREATE TABLE subscription_signups (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id          UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  subscription_id UUID NOT NULL REFERENCES monthly_subscriptions(id) ON DELETE CASCADE,
+  player_id       UUID NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  paid            BOOLEAN NOT NULL DEFAULT false,
+  paid_at         TIMESTAMPTZ,
+  requested_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (subscription_id, player_id)
+);
+
+-- Admin push notifications: a device's Web Push subscription (a player can
+-- have more than one — phone, laptop, ...) and the sent-history log shown
+-- below the admin's composer.
+CREATE TABLE push_subscriptions (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id     UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  player_id  UUID NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  endpoint   TEXT NOT NULL UNIQUE,
+  p256dh     TEXT NOT NULL,
+  auth       TEXT NOT NULL,
+  user_agent TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE notification_log (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id           UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  sender_id        UUID REFERENCES players(id) ON DELETE SET NULL,
+  title            TEXT NOT NULL,
+  body             TEXT NOT NULL,
+  audience_type    TEXT NOT NULL,
+  audience_label   TEXT NOT NULL,
+  recipient_count  INTEGER NOT NULL DEFAULT 0,
+  sent_count       INTEGER NOT NULL DEFAULT 0,
+  failed_count     INTEGER NOT NULL DEFAULT 0,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Exactly who got a given notification, so a player has somewhere in the
+-- app to see it again after tapping the OS push.
+CREATE TABLE notification_recipients (
+  notification_id UUID NOT NULL REFERENCES notification_log(id) ON DELETE CASCADE,
+  player_id        UUID NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  PRIMARY KEY (notification_id, player_id)
+);
+
+-- Recurring & scheduled push notifications: next_send_at is when it next
+-- fires, repeat_every_hours is NULL for a one-time send or an interval
+-- re-added to next_send_at after each send. Checked by an in-process
+-- interval in server/index.js (no cron/worker process in this app).
+CREATE TABLE scheduled_notifications (
+  id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id             UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  sender_id          UUID REFERENCES players(id) ON DELETE SET NULL,
+  title              TEXT NOT NULL,
+  body               TEXT NOT NULL,
+  audience_type      TEXT NOT NULL,
+  audience_params    JSONB NOT NULL DEFAULT '{}',
+  audience_label     TEXT NOT NULL,
+  next_send_at       TIMESTAMPTZ NOT NULL,
+  repeat_every_hours INTEGER,
+  active             BOOLEAN NOT NULL DEFAULT true,
+  last_sent_at       TIMESTAMPTZ,
+  created_at         TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE TABLE platform_admins (
   phone      TEXT PRIMARY KEY,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -233,3 +321,10 @@ CREATE INDEX idx_registrations_match_status ON registrations(match_id, status);
 CREATE INDEX idx_team_players_player ON team_players(player_id);
 CREATE INDEX idx_goal_events_scorer ON goal_events(scorer_id);
 CREATE INDEX idx_goal_events_assist ON goal_events(assist_id);
+CREATE INDEX monthly_subscriptions_org_idx ON monthly_subscriptions (org_id, status, year DESC, month DESC);
+CREATE INDEX subscription_signups_subscription_idx ON subscription_signups (subscription_id);
+CREATE INDEX push_subscriptions_player_idx ON push_subscriptions (player_id);
+CREATE INDEX notification_log_org_idx ON notification_log (org_id, created_at DESC);
+CREATE INDEX notification_recipients_player_idx ON notification_recipients (player_id);
+CREATE INDEX scheduled_notifications_due_idx ON scheduled_notifications (active, next_send_at);
+CREATE INDEX scheduled_notifications_org_idx ON scheduled_notifications (org_id, created_at DESC);
