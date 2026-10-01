@@ -4885,3 +4885,26 @@ button.pitch-field-title:disabled { opacity: 1; }
 
 /* Player action menu: a divider before the destructive action */
 .player-menu-sep { border: 0; border-top: 1px solid var(--line); margin: 4px 6px; }
+
+/* "Game over" banner on the lineups and results pages */
+.fixture-over {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+}
+.fixture-over-icon {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--surface-3);
+  color: var(--ink);
+}
+.fixture-over strong { display: block; font-family: var(--font-display); font-size: 1.7rem; line-height: 1; }
+.fixture-over p { margin: 4px 0 0; color: var(--ink-3); font-size: .88rem; line-height: 1.5; }

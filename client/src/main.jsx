@@ -20,6 +20,7 @@ import {
   ClipboardList,
   Clock,
   Crown,
+  Flag,
   Goal,
   GripVertical,
   HelpCircle,
@@ -575,7 +576,14 @@ function App() {
         {view === "match" && <MatchView bundle={data.activeMatch} player={selectedPlayer} settings={data.settings} />}
         {view === "results" && (
           squadPublished && myAssignment ? (
-            <ResultsEntryView pitchId={myAssignment.pitch.id} pitchLabel={myAssignment.pitch.label} player={selectedPlayer} setToast={setToast} />
+            <ResultsEntryView
+              pitchId={myAssignment.pitch.id}
+              pitchLabel={myAssignment.pitch.label}
+              player={selectedPlayer}
+              setToast={setToast}
+              matchStatus={data.activeMatch?.match?.status}
+              canEditAfterGame={["admin", "stats_admin"].includes(currentUser?.role)}
+            />
           ) : (
             <ResultsUnavailableNotice squadPublished={squadPublished} status={data.activeMatch?.match?.status} />
           )
@@ -1991,6 +1999,7 @@ function MatchView({ bundle, player, settings }) {
           <span className="pill">{matchStatusLabel(bundle.match.status)}</span>
         )}
       </article>
+      <FixtureOverNotice status={bundle.match.status} />
       {orderedPitches.map((pitch) => (
         <PitchCard
           key={pitch.id}
@@ -7091,7 +7100,9 @@ function ResultsUnavailableNotice({ squadPublished, status }) {
           <h2>אין כרגע מה לתעד</h2>
         </div>
       </article>
-      {!squadPublished ? (
+      {status === "stats_published" ? (
+        <FixtureOverNotice status={status} />
+      ) : !squadPublished ? (
         <RoundCard status={status} caption="תיעוד התוצאות ייפתח כשיתפרסמו ההרכבים." />
       ) : (
         <article className="glass">
@@ -7105,7 +7116,30 @@ function ResultsUnavailableNotice({ squadPublished, status }) {
   );
 }
 
-function ResultsEntryView({ pitchId, pitchLabel, player, setToast }) {
+// Shown on the lineups and results pages once the game is over, so nobody
+// has to infer it from a small status pill.
+function FixtureOverNotice({ status, canStillRecord = false }) {
+  if (status !== "finished" && status !== "stats_published") return null;
+  const text = status === "stats_published"
+    ? "התוצאות, הטבלה והמצטיינים פורסמו בלשונית סטטיסטיקות."
+    : canStillRecord
+      ? "אפשר עדיין להוסיף ולתקן תוצאות עד הפרסום."
+      : "תיעוד התוצאות נסגר. התוצאות והטבלה יופיעו בסטטיסטיקות לאחר הפרסום.";
+  return (
+    <article className="fixture-over" role="status">
+      <span className="fixture-over-icon" aria-hidden="true"><Flag size={20} /></span>
+      <div>
+        <strong>{status === "stats_published" ? "המחזור הסתיים" : "המשחק הסתיים"}</strong>
+        <p>{text}</p>
+      </div>
+    </article>
+  );
+}
+
+function ResultsEntryView({ pitchId, pitchLabel, player, setToast, matchStatus, canEditAfterGame = false }) {
+  // Players can still see their pitch's games once the game is over, but
+  // the server stops accepting changes from them (admins keep editing).
+  const readOnly = matchStatus === "finished" && !canEditAfterGame;
   const [state, setState] = useState({ loading: true, error: null, data: null });
   const [addingGame, setAddingGame] = useState(false);
 
@@ -7175,14 +7209,15 @@ function ResultsEntryView({ pitchId, pitchLabel, player, setToast }) {
           <h2>{pitchLabel}</h2>
         </div>
       </article>
-      <MatchTimer />
-      {addingGame ? (
+      <FixtureOverNotice status={matchStatus} canStillRecord={!readOnly} />
+      {!readOnly && <MatchTimer />}
+      {!readOnly && (addingGame ? (
         <NewGameForm pitchId={pitchId} teams={teams} mutate={mutate} onDone={() => setAddingGame(false)} />
       ) : (
         <button className="primary add-game-button" onClick={() => setAddingGame(true)}><Plus size={16} /> משחק חדש</button>
-      )}
+      ))}
       {games.length === 0 && !addingGame && (
-        <p className="muted">עדיין אין משחקים במגרש הזה — הוסיפו משחק.</p>
+        <p className="muted">{readOnly ? "לא תועדו משחקים במגרש הזה." : "עדיין אין משחקים במגרש הזה — הוסיפו משחק."}</p>
       )}
       {[...games].reverse().map((game, index) => (
         <LiveGameRow
@@ -7192,6 +7227,7 @@ function ResultsEntryView({ pitchId, pitchLabel, player, setToast }) {
           teams={teams}
           goals={goalsByGame.get(game.id) || []}
           mutate={mutate}
+          readOnly={readOnly}
           // Newest game first (see reverse() above) — open it by default so
           // adding a game drops you straight into logging its goals instead
           // of needing an extra tap to expand what you just created.
@@ -7249,7 +7285,7 @@ function NewGameForm({ pitchId, teams, mutate, onDone }) {
 
 // Collapsed to just the scoreline by default — who scored/assisted is one
 // tap away, but doesn't need to eat screen space for every game at once.
-function LiveGameRow({ pitchId, game, teams, goals, mutate, defaultOpen, collapse }) {
+function LiveGameRow({ pitchId, game, teams, goals, mutate, defaultOpen, collapse, readOnly = false }) {
   const [open, setOpen] = useState(Boolean(defaultOpen));
   useEffect(() => {
     if (collapse) setOpen(false);
@@ -7285,33 +7321,41 @@ function LiveGameRow({ pitchId, game, teams, goals, mutate, defaultOpen, collaps
                     )}
                     {" · "}{goalTeam?.color_name}
                   </span>
-                  <button
-                    type="button"
-                    className="ghost icon-button"
-                    aria-label="מחיקת שער"
-                    onClick={() => mutate(`/api/pitches/${pitchId}/games/${game.id}/goals/${goal.id}`, { method: "DELETE" })}
-                  >
-                    <X size={14} />
-                  </button>
+                  {!readOnly && (
+                    <button
+                      type="button"
+                      className="ghost icon-button"
+                      aria-label="מחיקת שער"
+                      onClick={() => mutate(`/api/pitches/${pitchId}/games/${game.id}/goals/${goal.id}`, { method: "DELETE" })}
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
                 </li>
                 );
               })}
             </ul>
           )}
 
-          <AddGoalForm pitchId={pitchId} game={game} teamA={teamA} teamB={teamB} mutate={mutate} />
+          {goals.length === 0 && readOnly && <p className="muted">לא נרשמו שערים במשחק הזה.</p>}
 
-          <button
-            type="button"
-            className="ghost delete-game-button"
-            onClick={() => {
-              if (window.confirm("למחוק את המשחק הזה, כולל כל השערים?")) {
-                mutate(`/api/pitches/${pitchId}/games/${game.id}`, { method: "DELETE" });
-              }
-            }}
-          >
-            מחק משחק
-          </button>
+          {!readOnly && (
+            <>
+              <AddGoalForm pitchId={pitchId} game={game} teamA={teamA} teamB={teamB} mutate={mutate} />
+
+              <button
+                type="button"
+                className="ghost delete-game-button"
+                onClick={() => {
+                  if (window.confirm("למחוק את המשחק הזה, כולל כל השערים?")) {
+                    mutate(`/api/pitches/${pitchId}/games/${game.id}`, { method: "DELETE" });
+                  }
+                }}
+              >
+                מחק משחק
+              </button>
+            </>
+          )}
         </div>
       )}
     </article>

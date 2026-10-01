@@ -2972,6 +2972,13 @@ async function pitchForResultEntry(pitchId, user) {
   return memberRows[0] ? pitch : null;
 }
 
+// Once a match is marked finished, players can still read their pitch's
+// games but no longer add or remove any; admins and stats admins keep full
+// access until the stats are published (see MATCH_STATES in the client).
+function resultsLockedFor(pitch, user) {
+  return pitch.match_status === "finished" && !requireRole(user, ["admin", "stats_admin"]);
+}
+
 // The scoreline is never typed in — it's always exactly the goal_events
 // count, recomputed after every add/remove so game_results.team_a_goals /
 // team_b_goals (what everything else already reads) stays in sync.
@@ -3036,6 +3043,7 @@ app.post("/api/pitches/:pitchId/games", asyncRoute(async (req, res) => {
   if (!user) return res.status(401).json({ error: "נדרשת התחברות" });
   const pitch = await pitchForResultEntry(pitchId, user);
   if (!pitch) return res.status(403).json({ error: "אין הרשאה לתעד תוצאות למגרש הזה" });
+  if (resultsLockedFor(pitch, user)) return res.status(403).json({ error: "המשחק הסתיים, ותיעוד התוצאות נסגר" });
   if (!teamAId || !teamBId || teamAId === teamBId) {
     return res.status(400).json({ error: "יש לבחור שתי קבוצות שונות" });
   }
@@ -3068,6 +3076,7 @@ app.delete("/api/pitches/:pitchId/games/:gameId", asyncRoute(async (req, res) =>
   if (!user) return res.status(401).json({ error: "נדרשת התחברות" });
   const pitch = await pitchForResultEntry(pitchId, user);
   if (!pitch) return res.status(403).json({ error: "אין הרשאה לתעד תוצאות למגרש הזה" });
+  if (resultsLockedFor(pitch, user)) return res.status(403).json({ error: "המשחק הסתיים, ותיעוד התוצאות נסגר" });
   await query("DELETE FROM game_results WHERE id = $1 AND pitch_id = $2", [gameId, pitchId]);
   res.json({ ok: true });
 }));
@@ -3079,6 +3088,7 @@ app.post("/api/pitches/:pitchId/games/:gameId/goals", asyncRoute(async (req, res
   if (!user) return res.status(401).json({ error: "נדרשת התחברות" });
   const pitch = await pitchForResultEntry(pitchId, user);
   if (!pitch) return res.status(403).json({ error: "אין הרשאה לתעד תוצאות למגרש הזה" });
+  if (resultsLockedFor(pitch, user)) return res.status(403).json({ error: "המשחק הסתיים, ותיעוד התוצאות נסגר" });
   if (!scorerId) return res.status(400).json({ error: "יש לבחור כובש" });
   if (!ownGoal && assistId && assistId === scorerId) {
     return res.status(400).json({ error: "כובש לא יכול לבשל לעצמו" });
@@ -3115,6 +3125,7 @@ app.delete("/api/pitches/:pitchId/games/:gameId/goals/:goalId", asyncRoute(async
   if (!user) return res.status(401).json({ error: "נדרשת התחברות" });
   const pitch = await pitchForResultEntry(pitchId, user);
   if (!pitch) return res.status(403).json({ error: "אין הרשאה לתעד תוצאות למגרש הזה" });
+  if (resultsLockedFor(pitch, user)) return res.status(403).json({ error: "המשחק הסתיים, ותיעוד התוצאות נסגר" });
   const updatedGame = await withClient(async (client) => {
     await client.query("DELETE FROM goal_events WHERE id = $1 AND game_id = $2", [goalId, gameId]);
     return recomputeGameScore(client, gameId);
