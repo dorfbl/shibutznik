@@ -4933,3 +4933,51 @@ button.pitch-field-title:disabled { opacity: 1; }
 /* Dialog text keeps its own line breaks (e.g. the notification preview
    above "נשלח אל: …" in the send-notification prompt). */
 #confirm-text { white-space: pre-line; }
+
+/* ==========================================================================
+   Payment card (player home) and payment-link settings (admin)
+   ========================================================================== */
+.payment-card { display: grid; gap: 12px; align-content: start; border-color: color-mix(in srgb, var(--acc) 45%, var(--line)); }
+.payment-card > * { margin: 0; }
+.payment-card h2 { font-size: 1.15rem; }
+.payment-details { display: grid; gap: 6px; margin: 0; }
+.payment-detail {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 6px 6px 12px;
+  background: var(--sunken);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-sm);
+}
+.payment-detail dt { font-size: .8rem; font-weight: 600; color: var(--ink-3); }
+.payment-detail dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; text-align: end; overflow-wrap: anywhere; }
+.payment-copy {
+  width: 36px;
+  min-width: 36px;
+  min-height: 36px;
+  padding: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  border-color: transparent;
+  color: var(--ink-3);
+}
+.payment-copy:hover:not(:disabled) { color: var(--ink); }
+/* The link out is a real <a> styled as the primary action */
+.payment-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: var(--tap);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--r-md);
+  background: var(--acc);
+  color: var(--acc-ink);
+  font-weight: 700;
+  text-decoration: none;
+}
+.payment-cta:hover { filter: brightness(1.05); }
+.payment-cta:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
+.payment-link-form { margin: 4px 0 12px; }

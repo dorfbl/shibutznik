@@ -133,6 +133,7 @@ CREATE TABLE registrations (
   cancellation_reason TEXT,
   cancellation_review TEXT,
   payment_confirmed BOOLEAN NOT NULL DEFAULT false,
+  payment_link_sent_at TIMESTAMPTZ,
   UNIQUE (org_id, match_id, player_id)
 );
 
@@ -248,6 +249,7 @@ CREATE TABLE subscription_signups (
   paid            BOOLEAN NOT NULL DEFAULT false,
   paid_at         TIMESTAMPTZ,
   requested_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  payment_link_sent_at TIMESTAMPTZ,
   UNIQUE (subscription_id, player_id)
 );
 

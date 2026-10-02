@@ -646,7 +646,7 @@ app.get("/api/bootstrap", asyncRoute(async (_req, res) => {
   if (openSubscription.rows[0]) {
     const sub = openSubscription.rows[0];
     const { rows: mySignupRows } = await query(
-      "SELECT paid, requested_at FROM subscription_signups WHERE subscription_id = $1 AND player_id = $2",
+      "SELECT paid, requested_at, payment_link_sent_at FROM subscription_signups WHERE subscription_id = $1 AND player_id = $2",
       [sub.id, user.id]
     );
     subscription = {
@@ -670,15 +670,32 @@ app.get("/api/bootstrap", asyncRoute(async (_req, res) => {
      LIMIT 20`,
     [user.id]
   );
+  // The payment link and payer details reach only a player with an open
+  // payment request (link sent, not yet marked paid) — never the general
+  // settings everyone receives.
+  const settingsMap = Object.fromEntries(settings.rows.map((row) => [row.key, row.value]));
+  const paymentLink = settingsMap[PAYMENT_LINK_KEY];
+  delete settingsMap[PAYMENT_LINK_KEY];
+  const subscriptionDue = Boolean(subscription?.mySignup?.payment_link_sent_at && !subscription.mySignup.paid);
+  const myRegistration = bundle?.registrations?.find((row) => row.player_id === user.id);
+  const roundOver = ["finished", "stats_published"].includes(bundle?.match?.status);
+  const matchDue = Boolean(
+    myRegistration?.payment_link_sent_at && !myRegistration.payment_confirmed && !roundOver &&
+    !["cancelled", "not_attending"].includes(myRegistration.status)
+  );
+  const payment = paymentLink?.url && (subscriptionDue || matchDue)
+    ? { ...paymentLink, forSubscription: subscriptionDue, forMatch: matchDue }
+    : null;
   res.json({
     user,
     organization: { id: orgId, name: user.org_name, slug: user.org_slug },
     organizations: user.organizations || [],
     players: players.rows,
-    settings: Object.fromEntries(settings.rows.map((row) => [row.key, row.value])),
+    settings: settingsMap,
     activeMatch: bundle,
     subscription,
-    notifications
+    notifications,
+    payment
   });
 }));
 
@@ -966,9 +983,25 @@ app.get("/api/admin", asyncRoute(async (_req, res) => {
 // caller never needs to know whether a row already exists.
 app.patch("/api/admin/settings/:key", asyncRoute(async (req, res) => {
   const { key } = req.params;
-  const { value } = req.body;
+  let { value } = req.body;
   const orgId = req.user.org_id;
   if (value === undefined) return res.status(400).json({ error: "חסר ערך" });
+  // The external payment link and the payer details shown with it: full
+  // admins only, and the link must be a real https address.
+  if (key === PAYMENT_LINK_KEY) {
+    if (req.user.role !== "admin") return res.status(403).json({ error: "אין הרשאה לשנות את קישור התשלום" });
+    const clean = (text) => String(text ?? "").trim().slice(0, 300);
+    value = {
+      url: clean(value?.url),
+      firstName: clean(value?.firstName),
+      lastName: clean(value?.lastName),
+      idNumber: clean(value?.idNumber),
+      phone: clean(value?.phone)
+    };
+    if (value.url && !/^https:\/\/[^\s]+$/i.test(value.url)) {
+      return res.status(400).json({ error: "קישור התשלום חייב להתחיל ב-https://" });
+    }
+  }
   await query(
     `INSERT INTO settings (org_id, key, value) VALUES ($1, $2, $3)
      ON CONFLICT (org_id, key) DO UPDATE SET value = EXCLUDED.value`,
@@ -991,7 +1024,7 @@ async function subscriptionWithSignups(subscriptionId, orgId) {
   if (!subscription) return null;
   const total = subscriptionTotal(subscription);
   const { rows: signups } = await query(
-    `SELECT s.id, s.player_id, s.paid, s.paid_at, s.requested_at,
+    `SELECT s.id, s.player_id, s.paid, s.paid_at, s.requested_at, s.payment_link_sent_at,
             p.full_name AS player_name, p.avatar_url AS player_avatar_url, p.phone AS player_phone, p.credits
      FROM subscription_signups s
      JOIN players p ON p.id = s.player_id
@@ -1176,6 +1209,70 @@ app.patch("/api/admin/subscriptions/:subId/signups/:signupId", asyncRoute(async 
     );
   });
   res.json(await subscriptionWithSignups(subId, orgId));
+}));
+
+// ---- Payment links (see db/migrations/016_payment_links.sql) ----
+const PAYMENT_LINK_KEY = "payment_link";
+
+async function paymentLinkFor(orgId) {
+  const { rows } = await query("SELECT value FROM settings WHERE org_id = $1 AND key = $2", [orgId, PAYMENT_LINK_KEY]);
+  return rows[0]?.value?.url ? rows[0].value : null;
+}
+
+// Stamps the request time and tells the player; their home screen then shows
+// the payment card until the admin marks them paid.
+async function sendPaymentLink(req, res, { table, rowId, playerId, body }) {
+  if (req.user.role !== "admin") return res.status(403).json({ error: "אין הרשאה לשלוח קישור תשלום" });
+  const orgId = req.user.org_id;
+  if (!(await paymentLinkFor(orgId))) {
+    return res.status(400).json({ error: "לא הוגדר קישור תשלום. אפשר להגדיר אותו בלשונית הגדרות." });
+  }
+  await query(`UPDATE ${table} SET payment_link_sent_at = now() WHERE id = $1 AND org_id = $2`, [rowId, orgId]);
+  const { rows: players } = await query("SELECT id, full_name FROM players WHERE id = $1", [playerId]);
+  const result = await deliverNotification(
+    orgId, req.user.id, players, "קישור לתשלום", body, "player", players[0]?.full_name || "", "admin_send_payment_link"
+  );
+  res.status(201).json({ ok: true, ...result });
+}
+
+app.post("/api/admin/subscriptions/:subId/signups/:signupId/payment-link", asyncRoute(async (req, res) => {
+  const { subId, signupId } = req.params;
+  const { rows } = await query(
+    `SELECT s.id, s.player_id, s.paid, m.year, m.month
+     FROM subscription_signups s JOIN monthly_subscriptions m ON m.id = s.subscription_id
+     WHERE s.id = $1 AND s.subscription_id = $2 AND s.org_id = $3`,
+    [signupId, subId, req.user.org_id]
+  );
+  const signup = rows[0];
+  if (!signup) return res.status(404).json({ error: "ההרשמה למנוי לא נמצאה" });
+  if (signup.paid) return res.status(400).json({ error: "המנוי כבר סומן כשולם" });
+  return sendPaymentLink(req, res, {
+    table: "subscription_signups",
+    rowId: signup.id,
+    playerId: signup.player_id,
+    body: `קישור לתשלום המנוי לחודש ${signup.month}/${signup.year} מחכה לך בעמוד הראשי באפליקציה.`
+  });
+}));
+
+app.post("/api/admin/registrations/:registrationId/payment-link", asyncRoute(async (req, res) => {
+  const { rows } = await query(
+    `SELECT r.id, r.player_id, r.status, r.payment_confirmed, p.is_monthly_member, m.status AS match_status
+     FROM registrations r JOIN players p ON p.id = r.player_id JOIN matches m ON m.id = r.match_id
+     WHERE r.id = $1 AND r.org_id = $2`,
+    [req.params.registrationId, req.user.org_id]
+  );
+  const registration = rows[0];
+  if (!registration) return res.status(404).json({ error: "ההרשמה לא נמצאה" });
+  if (registration.is_monthly_member) return res.status(400).json({ error: "שחקן מנוי לא משלם על מחזור בודד" });
+  if (registration.payment_confirmed) return res.status(400).json({ error: "התשלום כבר אושר" });
+  if (["cancelled", "not_attending"].includes(registration.status)) return res.status(400).json({ error: "השחקן לא רשום למחזור" });
+  if (["finished", "stats_published"].includes(registration.match_status)) return res.status(400).json({ error: "המשחק כבר הסתיים" });
+  return sendPaymentLink(req, res, {
+    table: "registrations",
+    rowId: registration.id,
+    playerId: registration.player_id,
+    body: "קישור לתשלום על המחזור הקרוב מחכה לך בעמוד הראשי באפליקציה."
+  });
 }));
 
 app.delete("/api/admin/subscriptions/:subId/signups/:signupId", asyncRoute(async (req, res) => {
@@ -2806,7 +2903,7 @@ app.post("/api/matches/:matchId/register", asyncRoute(async (req, res) => {
       `INSERT INTO registrations (org_id, match_id, player_id, status, payment_confirmed)
        VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT (org_id, match_id, player_id)
-       DO UPDATE SET status = EXCLUDED.status, payment_confirmed = EXCLUDED.payment_confirmed, requested_at = now()`,
+       DO UPDATE SET status = EXCLUDED.status, payment_confirmed = EXCLUDED.payment_confirmed, requested_at = now(), payment_link_sent_at = NULL`,
       [orgId, matchId, playerId, status, useCredit]
     );
     if (useCredit) {

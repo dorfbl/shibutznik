@@ -19,7 +19,9 @@ import {
   CircleUserRound,
   ClipboardList,
   Clock,
+  Copy,
   Crown,
+  ExternalLink,
   Flag,
   Goal,
   GripVertical,
@@ -578,6 +580,7 @@ function App() {
             setToast={setToast}
             askConfirm={(options) => setConfirm({ ...options, dialogId: `${Date.now()}-${Math.random()}` })}
             settings={data.settings}
+            payment={data.payment}
           />
         )}
         {view === "match" && <MatchView bundle={data.activeMatch} player={selectedPlayer} settings={data.settings} />}
@@ -949,7 +952,7 @@ function ProfileMenu({ player, role, isPlatformAdmin, view, organizations, activ
   );
 }
 
-function PlayerHome({ player, bundle, subscription, reload, setToast, askConfirm, settings }) {
+function PlayerHome({ player, bundle, subscription, reload, setToast, askConfirm, settings, payment }) {
   const assignment = teamsVisible(bundle?.match?.status) ? findAssignment(bundle, player?.id) : null;
   const statsEnabled = settings?.player_stats_visible !== false;
   const [statsPlayer, setStatsPlayer] = useState(null);
@@ -1040,6 +1043,7 @@ function PlayerHome({ player, bundle, subscription, reload, setToast, askConfirm
     <section className="grid two">
       <PushNotificationPrompt player={player} setToast={setToast} />
       <ActionItemsPanel items={actionItems} />
+      <PaymentCard payment={payment} subscription={subscription} setToast={setToast} />
       <article className="hero-panel glass">
         <div className="hero-copy">
           <p className="eyebrow"><CalendarDays size={13} /> {isRoundOver(bundle?.match?.status) ? "המשחק האחרון" : "המשחק הקרוב"}</p>
@@ -1134,6 +1138,62 @@ function PlayerHome({ player, bundle, subscription, reload, setToast, askConfirm
         <SubscriptionCard subscription={subscription} player={player} reload={reload} setToast={setToast} askConfirm={askConfirm} wide />
       )}
     </section>
+  );
+}
+
+// Shown only while this player has an open payment request (the server sends
+// `payment` just to them, once a link was sent and until they're marked
+// paid): the external payment page plus the fixed details its form asks
+// for, each one copyable.
+function PaymentCard({ payment, subscription, setToast }) {
+  if (!payment) return null;
+  const monthName = subscription ? monthLabel(subscription.year, subscription.month) : "";
+  const title = payment.forSubscription && payment.forMatch
+    ? "תשלום על המנוי ועל המחזור הקרוב"
+    : payment.forSubscription
+      ? `תשלום מנוי ${monthName}`
+      : "תשלום על המחזור הקרוב";
+  const details = [
+    ["שם פרטי", payment.firstName],
+    ["שם משפחה", payment.lastName],
+    ["ת.ז", payment.idNumber],
+    ["טלפון", payment.phone]
+  ].filter(([, value]) => value);
+
+  async function copy(label, value) {
+    try {
+      await navigator.clipboard.writeText(value);
+      showToast(setToast, `${label} הועתק`, "success");
+    } catch {
+      showToast(setToast, "לא ניתן היה להעתיק. אפשר לסמן ולהעתיק ידנית.", "error");
+    }
+  }
+
+  return (
+    <article className="glass payment-card wide">
+      <p className="eyebrow"><Wallet size={13} /> תשלום</p>
+      <h2>{title}</h2>
+      {details.length > 0 && (
+        <>
+          <p className="muted">בדף התשלום יש למלא את הפרטים האלה. אפשר להעתיק כל פרט בלחיצה.</p>
+          <dl className="payment-details">
+            {details.map(([label, value]) => (
+              <div key={label} className="payment-detail">
+                <dt>{label}</dt>
+                <dd dir="ltr">{value}</dd>
+                <button type="button" className="payment-copy" onClick={() => copy(label, value)} aria-label={`העתקת ${label}`}>
+                  <Copy size={15} />
+                </button>
+              </div>
+            ))}
+          </dl>
+        </>
+      )}
+      <a className="payment-cta" href={payment.url} target="_blank" rel="noopener noreferrer">
+        לתשלום <ExternalLink size={16} aria-hidden="true" />
+      </a>
+      <p className="muted">אחרי התשלום, ההרשמה תאושר ידנית והסטטוס יתעדכן כאן.</p>
+    </article>
   );
 }
 
@@ -2873,6 +2933,7 @@ function AdminView({ data, reload, refreshAll, user, selectedMatchId, setSelecte
           organization={data.organization}
           registrationQuestions={data.registrationQuestions || []}
           setToast={setToast}
+          isFullAdmin={user?.role === "admin"}
         />
       )}
       {tab === "players" && <AdminPlayers players={data.players} mutate={mutate} bundle={bundle} user={user} weights={rankWeights} />}
@@ -3819,11 +3880,64 @@ function RankWeightsSettings({ settings, mutate }) {
 
 // Org-wide preferences — independent of any one fixture, unlike AdminControl
 // below, which is entirely about the currently selected match.
-function AdminSettings({ mutate, settings, organization, registrationQuestions, setToast }) {
+const PAYMENT_LINK_FIELDS = [
+  ["url", "קישור לדף התשלום", "url"],
+  ["firstName", "שם פרטי", "text"],
+  ["lastName", "שם משפחה", "text"],
+  ["idNumber", "ת.ז", "text"],
+  ["phone", "טלפון", "tel"]
+];
+
+// The external payment page (e.g. Fizikal) and the fixed details its form
+// asks for. Players see them only on a payment card, and only after a link
+// was sent to them (see PaymentCard and /api/bootstrap).
+function PaymentLinkSettings({ settings, mutate }) {
+  const saved = settings?.payment_link || {};
+  const [draft, setDraft] = useState(() =>
+    Object.fromEntries(PAYMENT_LINK_FIELDS.map(([key]) => [key, saved[key] || ""]))
+  );
+  const dirty = PAYMENT_LINK_FIELDS.some(([key]) => (draft[key] || "") !== (saved[key] || ""));
+  return (
+    <article className="glass">
+      <div className="section-head">
+        <div>
+          <p className="eyebrow">תשלומים</p>
+          <h2>קישור תשלום</h2>
+        </div>
+      </div>
+      <p className="muted">הקישור והפרטים מוצגים רק לשחקן שנשלח אליו קישור תשלום ועדיין לא סומן כשולם.</p>
+      <div className="form-grid payment-link-form">
+        {PAYMENT_LINK_FIELDS.map(([key, label, type]) => (
+          <Field key={key} label={label} wide={key === "url"}>
+            <input
+              id={`payment-link-${key}`}
+              type={type}
+              dir="ltr"
+              inputMode={key === "idNumber" ? "numeric" : undefined}
+              placeholder={key === "url" ? "https://" : ""}
+              value={draft[key]}
+              onChange={(event) => setDraft((current) => ({ ...current, [key]: event.target.value }))}
+            />
+          </Field>
+        ))}
+      </div>
+      <button
+        className="primary"
+        disabled={!dirty}
+        onClick={() => mutate("/api/admin/settings/payment_link", { method: "PATCH", body: { value: draft }, success: "קישור התשלום נשמר" })}
+      >
+        שמירה
+      </button>
+    </article>
+  );
+}
+
+function AdminSettings({ mutate, settings, organization, registrationQuestions, setToast, isFullAdmin = false }) {
   const statsEnabled = settings?.player_stats_visible !== false;
   return (
     <>
       <InviteLinkCard organization={organization} setToast={setToast} />
+      {isFullAdmin && <PaymentLinkSettings settings={settings} mutate={mutate} />}
       <article className="glass">
         <div className="section-head">
           <div>
@@ -4209,6 +4323,16 @@ function AdminSubscription({ data, mutate, setToast }) {
     });
   }
 
+  // Puts the payment card on this player's home screen and notifies them.
+  function sendPaymentLink(signup) {
+    mutate(`/api/admin/subscriptions/${subscription.id}/signups/${signup.id}/payment-link`, {
+      method: "POST",
+      confirm: signup.payment_link_sent_at ? `לשלוח שוב קישור תשלום ל${signup.player_name}?` : `לשלוח קישור תשלום ל${signup.player_name}?`,
+      confirmText: "השחקן יקבל התראה, וקישור התשלום יופיע בעמוד הראשי שלו עד שיסומן כשולם.",
+      success: "קישור התשלום נשלח"
+    });
+  }
+
   function markPaid(signup, paid) {
     mutate(`/api/admin/subscriptions/${subscription.id}/signups/${signup.id}`, {
       method: "PATCH",
@@ -4306,9 +4430,18 @@ function AdminSubscription({ data, mutate, setToast }) {
                   <img src={signup.player_avatar_url} alt="" />
                   <div>
                     <strong>{signup.player_name}</strong>
-                    <small>{signup.paid ? `שולם · ${signup.amount_due}₪` : `לתשלום: ${signup.amount_due}₪`}</small>
+                    <small>
+                      {signup.paid
+                        ? `שולם · ${signup.amount_due}₪`
+                        : `לתשלום: ${signup.amount_due}₪${signup.payment_link_sent_at ? " · קישור תשלום נשלח" : ""}`}
+                    </small>
                   </div>
                   <div className="row-actions">
+                    {!signup.paid && (
+                      <button className="ghost" onClick={() => sendPaymentLink(signup)}>
+                        <Wallet size={15} /> {signup.payment_link_sent_at ? "שליחה חוזרת" : "קישור תשלום"}
+                      </button>
+                    )}
                     <button className={signup.paid ? "ghost" : "primary"} onClick={() => markPaid(signup, !signup.paid)}>
                       {signup.paid ? "בטל סימון" : "סמן כשולם"}
                     </button>
@@ -5923,16 +6056,24 @@ function AdminRegistrationRow({ registration, number, isFullGroup, mutate, picke
   const isOneTimer = !registration.is_monthly_member;
   const isPicked = picked === registration.id;
   const isStandbyRow = registration.status === "standby";
+  const linkSent = Boolean(registration.payment_link_sent_at) && !registration.payment_confirmed;
   const statusText = registration.is_monthly_member
     ? "מנוי - לא צריך תשלום"
-    : registration.status === "payment_pending"
-      ? "חד פעמי - ממתין לתשלום"
     : registration.payment_confirmed
       ? "חד פעמי - שולם"
-      : isFullGroup
-        ? "חד פעמי - לשלוח קישור תשלום"
-        : "חד פעמי - עדיין סטנדביי";
-  const canConfirmPayment = isOneTimer && registration.status === "payment_pending";
+      : linkSent
+        ? "חד פעמי - קישור תשלום נשלח"
+        : registration.status === "payment_pending"
+          ? "חד פעמי - ממתין לתשלום"
+          : isFullGroup
+            ? "חד פעמי - לשלוח קישור תשלום"
+            : "חד פעמי - עדיין סטנדביי";
+  // Payment can be confirmed once it's actually being collected: a seat is
+  // held for it, or the player was sent the payment link from standby.
+  const canConfirmPayment = isOneTimer && !registration.payment_confirmed &&
+    (registration.status === "payment_pending" || linkSent);
+  const canSendPaymentLink = isOneTimer && !registration.payment_confirmed &&
+    ["standby", "payment_pending"].includes(registration.status);
 
   // Game-day replacement: tap a standby row to mark it, then tap an
   // approved row to decide what happens to that approved player. Anywhere
@@ -5978,13 +6119,20 @@ function AdminRegistrationRow({ registration, number, isFullGroup, mutate, picke
       {/* On a phone these collapse to their icons (.btn-text is hidden) so the
           whole registration stays on one line; desktop keeps the wording. */}
       <div className="row-actions" onClick={(event) => event.stopPropagation()}>
-        {isOneTimer && isFullGroup && !registration.payment_confirmed && (
+        {/* Sends the real link: a notification plus the payment card on the
+            player's home screen. Their place in the queue doesn't change. */}
+        {canSendPaymentLink && (
           <button
-            title="שלח תשלום"
-            aria-label="שלח תשלום"
-            onClick={() => mutate(`/api/admin/registrations/${registration.id}`, { body: { status: "payment_pending", payment_confirmed: false }, success: "סומן לשליחת תשלום" })}
+            title={linkSent ? "שליחה חוזרת של קישור תשלום" : "שליחת קישור תשלום"}
+            aria-label={linkSent ? "שליחה חוזרת של קישור תשלום" : "שליחת קישור תשלום"}
+            onClick={() => mutate(`/api/admin/registrations/${registration.id}/payment-link`, {
+              method: "POST",
+              confirm: linkSent ? `לשלוח שוב קישור תשלום ל${registration.player_name}?` : `לשלוח קישור תשלום ל${registration.player_name}?`,
+              confirmText: "השחקן יקבל התראה, וקישור התשלום יופיע בעמוד הראשי שלו עד שהתשלום יאושר.",
+              success: "קישור התשלום נשלח"
+            })}
           >
-            <Wallet size={15} /><span className="btn-text">שלח תשלום</span>
+            <Wallet size={15} /><span className="btn-text">{linkSent ? "שליחה חוזרת" : "קישור תשלום"}</span>
           </button>
         )}
         {canConfirmPayment && (
