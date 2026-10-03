@@ -4999,3 +4999,58 @@ button.pitch-field-title:disabled { opacity: 1; }
   .action-item-row > button { width: 100%; }
   .action-item-row button { min-height: 40px; padding-block: 8px; }
 }
+
+/* ==========================================================================
+   Primary nav hides in admin mode / organization management
+   Phones: the bottom bar slides down off screen and fades; it slides back
+   up on "חזרה לשחקן". Larger screens: the tab row folds closed.
+   ========================================================================== */
+@media (max-width: 759px) {
+  .segmented {
+    transition:
+      transform .34s cubic-bezier(.22, .8, .36, 1),
+      opacity .26s ease,
+      visibility 0s linear 0s;
+  }
+  .segmented.nav-hidden {
+    transform: translateY(calc(100% + 16px));
+    opacity: 0;
+    visibility: hidden;
+    transition:
+      transform .26s cubic-bezier(.4, 0, 1, 1),
+      opacity .2s ease .06s,
+      visibility 0s linear .3s;
+  }
+  /* Release the space the fixed bar reserved at the bottom of the page. */
+  .app-shell { transition: padding-bottom .3s var(--ease); }
+  .app-shell.nav-hidden { padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
+}
+@media (min-width: 760px) {
+  .segmented {
+    max-height: 120px;
+    transition:
+      max-height .3s var(--ease),
+      max-width .3s var(--ease),
+      opacity .22s ease,
+      padding .3s var(--ease),
+      margin .3s var(--ease),
+      border-width .3s var(--ease);
+  }
+  .segmented.nav-hidden {
+    max-height: 0;
+    opacity: 0;
+    padding: 0;
+    margin: 0;
+    border-width: 0;
+    overflow: hidden;
+  }
+  .topbar-row:has(.segmented.nav-hidden) { gap: 0; }
+}
+/* Wide screens put the tabs beside the header, so they fold sideways too. */
+@media (min-width: 1180px) {
+  .segmented { max-width: 1400px; }
+  .segmented.nav-hidden { max-width: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .segmented, .segmented.nav-hidden, .app-shell { transition: none; }
+}

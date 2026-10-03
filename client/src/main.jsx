@@ -487,7 +487,7 @@ function App() {
   if (!data) return <Splash text="טוען את המשחק..." />;
 
   return (
-    <div className="app-shell" dir="rtl">
+    <div className={`app-shell${view === "admin" || view === "platform" ? " nav-hidden" : ""}`} dir="rtl">
       <div className="ambient ambient-a" />
       <div className="ambient ambient-b" />
       <div className="topbar-row">
@@ -554,7 +554,7 @@ function App() {
         {/* Kept as a sibling of header, never nested inside it — .topbar has a
             backdrop-filter, which would make it the containing block for this
             nav's position:fixed on mobile, breaking the bottom-bar anchoring. */}
-        <Segmented value={view} onChange={setView} />
+        <Segmented value={view} onChange={setView} hidden={view === "admin" || view === "platform"} />
       </div>
 
       <main>
@@ -836,7 +836,10 @@ function OrgSwitcher({ user, organizations, onSwitch }) {
 // The four pages every player uses. Admin mode and organization management
 // are reached from the profile menu instead (see ProfileMenu), so this bar
 // is the same for everyone and fits a phone's bottom edge.
-function Segmented({ value, onChange }) {
+// `hidden` (admin / organization management) slides it away instead of
+// removing it, so it animates back in on "חזרה לשחקן"; `inert` keeps it out
+// of taps and keyboard focus while it's off screen.
+function Segmented({ value, onChange, hidden = false }) {
   const options = [
     ["player", "ראשי", LayoutDashboard],
     ["match", "הרכבים", Users],
@@ -844,7 +847,7 @@ function Segmented({ value, onChange }) {
     ["stats", "סטטיסטיקות", Trophy]
   ];
   return (
-    <nav className="segmented">
+    <nav className={`segmented${hidden ? " nav-hidden" : ""}`} inert={hidden} aria-hidden={hidden || undefined}>
       {options.map(([id, label, Icon]) => (
         <button key={id} className={value === id ? "active" : ""} onClick={() => onChange(id)} title={label}>
           <Icon size={18} />
