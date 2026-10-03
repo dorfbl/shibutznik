@@ -4981,3 +4981,21 @@ button.pitch-field-title:disabled { opacity: 1; }
 .payment-cta:hover { filter: brightness(1.05); }
 .payment-cta:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
 .payment-link-form { margin: 4px 0 12px; }
+
+/* "דורש טיפול" on phones: icon + text on one line, the action(s) full width
+   underneath. (The column layout used to turn the text's 160px flex-basis
+   into a 160px HEIGHT, so each row filled half the screen.) */
+@media (max-width: 759px) {
+  .action-item-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 8px 10px;
+    padding: 10px 12px;
+  }
+  .action-item-row > span { flex: none; line-height: 1.4; }
+  .action-item-row > button,
+  .action-item-row > .action-item-buttons { grid-column: 1 / -1; }
+  .action-item-row > button { width: 100%; }
+  .action-item-row button { min-height: 40px; padding-block: 8px; }
+}
