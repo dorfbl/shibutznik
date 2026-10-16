@@ -792,6 +792,7 @@ function PlayerHome({ player, bundle, reload, setToast, askConfirm, organization
         onSwitchOrg={onSwitchOrg}
       />
       <RecentMatch bundle={bundle} player={player} />
+      <MyHistoryCard player={player} />
     </section>
   );
 }
@@ -1264,30 +1265,10 @@ function ProfileStats({ player, reload, setToast, organizations, activeOrgId, on
   const [stats, setStats] = useState(null);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState({ full_name: "", avatar_url: "" });
-  // Same drill-down as PlayerStatsModal (fixture ← history ← this card),
-  // reusing the same two overlays — see the comment on that modal.
-  const [historyOpen, setHistoryOpen] = useState(false);
-  const [fixtureMatchId, setFixtureMatchId] = useState(null);
   useEffect(() => {
     if (!player?.id) return;
     fetch(`${API}/api/players/${player.id}/stats`).then((response) => response.json()).then(setStats);
   }, [player?.id]);
-
-  // Only this card's own session locks the body — PlayerHistoryOverlay and
-  // FixtureStatsOverlay don't, so opening them from here or from
-  // PlayerStatsModal never double-locks (see that modal's identical effect).
-  useEffect(() => {
-    if (!historyOpen && !fixtureMatchId) return;
-    const scrollY = window.scrollY;
-    const body = document.body;
-    body.classList.add("modal-open");
-    body.style.top = `-${scrollY}px`;
-    return () => {
-      body.classList.remove("modal-open");
-      body.style.top = "";
-      window.scrollTo(0, scrollY);
-    };
-  }, [historyOpen || !!fixtureMatchId]);
 
   function startEditing() {
     setDraft({ full_name: player?.full_name || "", avatar_url: player?.avatar_url || "" });
@@ -1341,37 +1322,7 @@ function ProfileStats({ player, reload, setToast, organizations, activeOrgId, on
         <Metric icon={Goal} label="שערים" value={stats?.totals.goals ?? 0} />
         <Metric icon={Activity} label="בישולים" value={stats?.totals.assists ?? 0} />
       </div>
-      {stats?.history?.length > 0 && (
-        <div className="player-stats-history">
-          <p className="eyebrow">משחקים אחרונים</p>
-          {/* Each row opens that fixture's own full stats (standings,
-              scorers, standouts) via FixtureStatsOverlay — same pattern as
-              PlayerStatsModal's teammate-facing version of this list. */}
-          {stats.history.slice(0, 5).map((row) => (
-            <button className="standing-row" key={row.match_id} onClick={() => setFixtureMatchId(row.match_id)}>
-              <strong>{row.title}</strong>
-              <span>{row.label}</span>
-              {(row.goals > 0 || row.assists > 0) && <span>{row.goals}⚽ {row.assists}🅰️</span>}
-            </button>
-          ))}
-          {stats.history.length > 5 && (
-            <button className="player-stats-history-all" onClick={() => setHistoryOpen(true)}>
-              לכל ההיסטוריה <ChevronLeft size={16} />
-            </button>
-          )}
-        </div>
-      )}
       <p className="muted">הצטרף לקהילה: {formatDate(player?.joined_at)}</p>
-      {fixtureMatchId ? (
-        <FixtureStatsOverlay matchId={fixtureMatchId} currentUser={player} onClose={() => setFixtureMatchId(null)} />
-      ) : historyOpen && (
-        <PlayerHistoryOverlay
-          playerName={player?.full_name}
-          history={stats?.history || []}
-          onClose={() => setHistoryOpen(false)}
-          onSelectFixture={setFixtureMatchId}
-        />
-      )}
     </article>
   );
 }
@@ -1388,6 +1339,77 @@ function RecentMatch({ bundle, player }) {
         <Metric icon={Goal} label="שערים שלך" value={goals} />
         <Metric icon={Activity} label="בישולים שלך" value={assists} />
       </div>
+    </article>
+  );
+}
+
+// A main-page card for "pick a fixture, see my line in it": which team you
+// were on and what you scored/assisted, with no modal to open first — the
+// one-player-per-row data /api/players/:id/stats already returns (see its
+// history query) is exactly this, so the picker needs no extra fetch.
+// "See full stats" still opens FixtureStatsOverlay for the deeper
+// standings/scorers/standouts breakdown when that's wanted.
+function MyHistoryCard({ player }) {
+  const [stats, setStats] = useState(null);
+  const [matchId, setMatchId] = useState("");
+  const [fixtureMatchId, setFixtureMatchId] = useState(null);
+
+  useEffect(() => {
+    if (!player?.id) return;
+    let cancelled = false;
+    fetch(`${API}/api/players/${player.id}/stats`)
+      .then((response) => response.json())
+      .then((payload) => {
+        if (cancelled) return;
+        setStats(payload);
+        // Default to the most recent fixture (history is newest-first) —
+        // never overrides a choice the player already made.
+        setMatchId((current) => current || payload.history?.[0]?.match_id || "");
+      });
+    return () => { cancelled = true; };
+  }, [player?.id]);
+
+  const history = stats?.history || [];
+  const selected = history.find((row) => row.match_id === matchId);
+
+  return (
+    <article className="glass wide">
+      <div className="section-head">
+        <div>
+          <p className="eyebrow">ההיסטוריה שלי</p>
+          <h2>איך שיחקתי במחזור?</h2>
+        </div>
+      </div>
+      {history.length === 0 ? (
+        <p className="muted">עדיין אין משחקים להצגה.</p>
+      ) : (
+        <>
+          <label className="field" style={{ maxWidth: 320 }}>
+            <span>בחר מחזור</span>
+            <select value={matchId} onChange={(event) => setMatchId(event.target.value)}>
+              {history.map((row) => (
+                <option key={row.match_id} value={row.match_id}>{row.title} · {formatDate(row.match_date)}</option>
+              ))}
+            </select>
+          </label>
+          {selected && (
+            <div className="status-card" style={{ marginTop: 14 }}>
+              <div className="assignment-line">
+                <span>{selected.label}</span>
+                <span className="assignment-sep" aria-hidden="true">·</span>
+                <span className="assignment-swatch" style={{ background: selected.color_hex }} aria-hidden="true" />
+                <span className="assignment-team">{selected.color_name}</span>
+              </div>
+              <div className="stat-grid">
+                <Metric icon={Goal} label="שערים" value={selected.goals} />
+                <Metric icon={Activity} label="בישולים" value={selected.assists} />
+              </div>
+              <button onClick={() => setFixtureMatchId(selected.match_id)}>לכל הסטטיסטיקות של המחזור</button>
+            </div>
+          )}
+        </>
+      )}
+      {fixtureMatchId && <FixtureStatsOverlay matchId={fixtureMatchId} currentUser={player} onClose={() => setFixtureMatchId(null)} />}
     </article>
   );
 }
