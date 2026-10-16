@@ -699,6 +699,20 @@ app.get("/api/bootstrap", asyncRoute(async (_req, res) => {
   });
 }));
 
+// A player-safe read of any single fixture's bundle (any match in their own
+// org, past or present) — getMatchBundle already withholds results/roster
+// until the admin publishes them (see its own comments), so this is exactly
+// as safe as the activeMatch bundle /api/bootstrap already hands out, just
+// addressable by id instead of always "whichever match is active." Powers
+// the player-facing fixture stats/history views.
+app.get("/api/matches/:matchId/bundle", asyncRoute(async (req, res) => {
+  const user = await currentUser(req);
+  if (!user) return res.status(401).json({ error: "נדרשת התחברות" });
+  const bundle = await getMatchBundle(req.params.matchId, false, user.org_id);
+  if (!bundle.match) return res.status(404).json({ error: "המשחק לא נמצא" });
+  res.json(bundle);
+}));
+
 // Platform admin: manages organizations themselves, never their data. Gated
 // on is_platform_admin (see currentUser), never on any org role — being a
 // platform admin does not by itself make someone an admin of any org.
@@ -3271,7 +3285,9 @@ app.get("/api/players/:playerId/stats", asyncRoute(async (req, res) => {
     query("SELECT COUNT(*)::int AS count FROM goal_events WHERE assist_id = $1 AND org_id = $2", [playerId, orgId]),
     query("SELECT COUNT(*)::int AS count FROM team_players WHERE player_id = $1 AND org_id = $2", [playerId, orgId]),
     query(
-      `SELECT m.title, m.match_date, pi.label, t.color_name, t.color_hex,
+      // m.id rides along so a history row can link to that fixture's full
+      // stats (GET /api/matches/:matchId/bundle) — see PlayerStatsModal.
+      `SELECT m.id AS match_id, m.title, m.match_date, pi.label, t.color_name, t.color_hex,
         COUNT(ge.id) FILTER (WHERE ge.scorer_id = $1)::int AS goals,
         COUNT(ge.id) FILTER (WHERE ge.assist_id = $1)::int AS assists
        FROM team_players tp
@@ -3280,7 +3296,7 @@ app.get("/api/players/:playerId/stats", asyncRoute(async (req, res) => {
        JOIN matches m ON m.id = pi.match_id
        LEFT JOIN goal_events ge ON ge.team_id = t.id AND (ge.scorer_id = $1 OR ge.assist_id = $1)
        WHERE tp.player_id = $1 AND tp.org_id = $2
-       GROUP BY m.title, m.match_date, pi.label, t.color_name, t.color_hex
+       GROUP BY m.id, m.title, m.match_date, pi.label, t.color_name, t.color_hex
        ORDER BY m.match_date DESC`,
       [playerId, orgId]
     )

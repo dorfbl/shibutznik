@@ -2849,6 +2849,24 @@ body.modal-open {
   text-align: start;
 }
 .player-stats-history .standing-row:last-child { border-bottom: 0; }
+/* History rows are buttons now (tap one to open that fixture's full
+   stats) — reset the base button chrome so they still read as plain
+   list rows, not boxed buttons. */
+.player-stats-history .standing-row {
+  width: 100%;
+  background: none;
+  border: 0;
+  border-radius: var(--r-sm);
+  padding: 10px 2px;
+  min-height: 0;
+  justify-content: flex-start;
+  text-align: start;
+  font-weight: 400;
+  white-space: normal;
+  cursor: pointer;
+}
+.player-stats-history .standing-row:hover { background: var(--surface-2); }
+.player-stats-history-all { width: 100%; margin-top: 8px; justify-content: center; }
 
 /* ==========================================================================
    PLAYER PROFILE — full-screen overlay, not a centered modal, so it reads

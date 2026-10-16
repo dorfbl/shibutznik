@@ -1133,7 +1133,7 @@ function PlayerHome({ player, bundle, subscription, reload, setToast, askConfirm
             <p className="muted">{ROUND_CAPTIONS[bundle?.match?.status] || ROUND_CAPTIONS.draft}</p>
           </>
         )}
-        {statsPlayer && <PlayerStatsModal player={statsPlayer} onClose={() => setStatsPlayer(null)} />}
+        {statsPlayer && <PlayerStatsModal player={statsPlayer} currentUser={player} onClose={() => setStatsPlayer(null)} />}
       </article>
 
       <RecentMatch bundle={bundle} player={player} />
@@ -2120,7 +2120,7 @@ function MatchView({ bundle, player, settings }) {
           onSelectPlayer={statsEnabled ? setStatsPlayer : undefined}
         />
       ))}
-      {statsPlayer && <PlayerStatsModal player={statsPlayer} onClose={() => setStatsPlayer(null)} />}
+      {statsPlayer && <PlayerStatsModal player={statsPlayer} currentUser={player} onClose={() => setStatsPlayer(null)} />}
     </section>
   );
 }
@@ -2273,8 +2273,14 @@ function TeamFormation({ team, myPlayerId, onSelectPlayer }) {
 // Read-only stats for whoever you tapped — same numbers ProfileStats shows
 // for your own profile, minus the editing controls, which make no sense for
 // a teammate. Admin-toggleable: see player_stats_visible in AdminControl.
-function PlayerStatsModal({ player, onClose }) {
+function PlayerStatsModal({ player, currentUser, onClose }) {
   const [stats, setStats] = useState(null);
+  // Drill-down state for this one viewing session: null/null shows the
+  // summary card below; opening a fixture or the full history swaps the
+  // return value for one of the two overlays further down, without this
+  // component (and its body-scroll-lock effect) ever unmounting.
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [fixtureMatchId, setFixtureMatchId] = useState(null);
   useBackButtonClose(onClose);
 
   useEffect(() => {
@@ -2297,11 +2303,32 @@ function PlayerStatsModal({ player, onClose }) {
     };
   }, []);
 
+  // Escape backs out one level at a time (fixture → history → the modal
+  // itself) rather than always closing the whole thing at once.
   useEffect(() => {
-    function onKey(event) { if (event.key === "Escape") onClose(); }
+    function onKey(event) {
+      if (event.key !== "Escape") return;
+      if (fixtureMatchId) setFixtureMatchId(null);
+      else if (historyOpen) setHistoryOpen(false);
+      else onClose();
+    }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, [onClose, fixtureMatchId, historyOpen]);
+
+  if (fixtureMatchId) {
+    return <FixtureStatsOverlay matchId={fixtureMatchId} currentUser={currentUser} onClose={() => setFixtureMatchId(null)} />;
+  }
+  if (historyOpen) {
+    return (
+      <PlayerHistoryOverlay
+        playerName={player.full_name}
+        history={stats?.history || []}
+        onClose={() => setHistoryOpen(false)}
+        onSelectFixture={setFixtureMatchId}
+      />
+    );
+  }
 
   // Portaled straight to <body> — see the identical comment on
   // PlayerProfileOverlay for why (rendered from deep inside <main>, which
@@ -2324,16 +2351,149 @@ function PlayerStatsModal({ player, onClose }) {
         {stats?.history?.length > 0 && (
           <div className="player-stats-history">
             <p className="eyebrow">משחקים אחרונים</p>
-            {stats.history.slice(0, 5).map((row, index) => (
-              <div className="standing-row" key={index}>
+            {/* Each row opens that fixture's own full stats (standings,
+                scorers, standouts) via FixtureStatsOverlay — a glance at
+                the last few games, one tap from the whole breakdown. */}
+            {stats.history.slice(0, 5).map((row) => (
+              <button className="standing-row" key={row.match_id} onClick={() => setFixtureMatchId(row.match_id)}>
                 <strong>{row.title}</strong>
                 <span>{row.label}</span>
                 {(row.goals > 0 || row.assists > 0) && <span>{row.goals}⚽ {row.assists}🅰️</span>}
-              </div>
+              </button>
             ))}
+            {stats.history.length > 5 && (
+              <button className="player-stats-history-all" onClick={() => setHistoryOpen(true)}>
+                לכל ההיסטוריה <ChevronLeft size={16} />
+              </button>
+            )}
           </div>
         )}
       </article>
+    </div>,
+    document.body
+  );
+}
+
+// The full "history at a glance" list behind PlayerStatsModal's 5-row
+// teaser — every fixture this player has appeared in, newest first. Same
+// row shape as the teaser; tapping one opens FixtureStatsOverlay.
+function PlayerHistoryOverlay({ playerName, history, onClose, onSelectFixture }) {
+  useBackButtonClose(onClose);
+
+  useEffect(() => {
+    function onKey(event) { if (event.key === "Escape") onClose(); }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return createPortal(
+    <div className="profile-overlay" role="dialog" aria-modal="true" aria-labelledby="player-history-title">
+      <header className="profile-overlay-head">
+        <button className="profile-back" onClick={onClose}>
+          <ChevronRight size={20} />
+          חזרה
+        </button>
+      </header>
+      <div className="profile-overlay-body">
+        <article className="glass page-title">
+          <div>
+            <p className="eyebrow">היסטוריה</p>
+            <h2 id="player-history-title">{playerName}</h2>
+          </div>
+        </article>
+        {history.length === 0 ? (
+          <article className="glass"><p className="muted">אין עדיין משחקים להצגה.</p></article>
+        ) : (
+          <div className="stack">
+            {history.map((row) => (
+              <button className="fixture-row" key={row.match_id} onClick={() => onSelectFixture(row.match_id)}>
+                <strong>{row.title}</strong>
+                <span>{formatDate(row.match_date)} · {row.label}</span>
+                {(row.goals > 0 || row.assists > 0) && <small>{row.goals}⚽ {row.assists}🅰️</small>}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+// One fixture's full stats (standings, scorers, standouts) — the same
+// breakdown StatsView shows for the current match, fetched by id instead
+// of always "whichever match is active" (see GET /api/matches/:matchId/
+// bundle). Reachable from a player's own or a teammate's history.
+function FixtureStatsOverlay({ matchId, currentUser, onClose }) {
+  const [bundle, setBundle] = useState(null);
+  const [failed, setFailed] = useState(false);
+  useBackButtonClose(onClose);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`${API}/api/matches/${matchId}/bundle`, { headers: authHeaders(currentUser) })
+      .then((response) => (response.ok ? response.json() : Promise.reject(response)))
+      .then((payload) => { if (!cancelled) setBundle(payload); })
+      .catch(() => { if (!cancelled) setFailed(true); });
+    return () => { cancelled = true; };
+  }, [matchId]);
+
+  useEffect(() => {
+    function onKey(event) { if (event.key === "Escape") onClose(); }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const match = bundle?.match;
+  const statsReady = match && statsVisible(match.status);
+
+  return createPortal(
+    <div className="profile-overlay" role="dialog" aria-modal="true" aria-labelledby="fixture-stats-title">
+      <header className="profile-overlay-head">
+        <button className="profile-back" onClick={onClose}>
+          <ChevronRight size={20} />
+          חזרה
+        </button>
+      </header>
+      <div className="profile-overlay-body">
+        {failed && <article className="glass"><p className="muted">לא ניתן לטעון את המשחק הזה.</p></article>}
+        {!failed && !match && <article className="glass"><p className="muted">טוען…</p></article>}
+        {match && (
+          <>
+            <article className="glass page-title">
+              <div>
+                <p className="eyebrow">סטטיסטיקות מחזור</p>
+                <h2 id="fixture-stats-title">{match.title}</h2>
+              </div>
+              <span className="pill">{formatDate(match.match_date)}</span>
+            </article>
+            {!statsReady ? (
+              <article className="glass">
+                <h2>הסטטיסטיקות עדיין לא פורסמו</h2>
+                <p className="muted">התוצאות, הטבלה והמצטיינים יוצגו כאן אחרי שהאדמין מפרסם אותם.</p>
+              </article>
+            ) : (
+              <div className="stack">
+                {bundle.standouts?.length > 0 && (
+                  <article className="glass">
+                    <p className="eyebrow">מצטייני המחזור</p>
+                    <div className="standouts">
+                      {bundle.standouts.map((item) => (
+                        <div className="standout" key={item.player_id}>
+                          <img src={item.avatar_url} alt="" />
+                          <strong>{item.full_name}</strong>
+                          <small>{item.reason}</small>
+                        </div>
+                      ))}
+                    </div>
+                  </article>
+                )}
+                {bundle.pitches.map((pitch) => <PitchStats key={pitch.id} pitch={pitch} goals={bundle.goals} />)}
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>,
     document.body
   );
