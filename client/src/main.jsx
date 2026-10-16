@@ -1193,9 +1193,16 @@ function PaymentCard({ payment, subscription, setToast }) {
           </dl>
         </>
       )}
-      <a className="payment-cta" href={payment.url} target="_blank" rel="noopener noreferrer">
-        לתשלום <ExternalLink size={16} aria-hidden="true" />
-      </a>
+      {payment.subscriptionUrl && (
+        <a className="payment-cta" href={payment.subscriptionUrl} target="_blank" rel="noopener noreferrer">
+          {payment.forMatch ? "לתשלום המנוי" : "לתשלום"} <ExternalLink size={16} aria-hidden="true" />
+        </a>
+      )}
+      {payment.matchUrl && (
+        <a className="payment-cta" href={payment.matchUrl} target="_blank" rel="noopener noreferrer">
+          {payment.forSubscription ? "לתשלום המחזור" : "לתשלום"} <ExternalLink size={16} aria-hidden="true" />
+        </a>
+      )}
       <p className="muted">אחרי התשלום, ההרשמה תאושר ידנית והסטטוס יתעדכן כאן.</p>
     </article>
   );
@@ -4115,8 +4122,19 @@ function RankWeightsSettings({ settings, mutate }) {
 
 // Org-wide preferences — independent of any one fixture, unlike AdminControl
 // below, which is entirely about the currently selected match.
+// "url" is the one-time fixture link; "daysN" is the link for a monthly
+// subscription of N days (the server picks it from the month's game days
+// minus the player's credits).
+const PAYMENT_LINK_URL_FIELDS = [
+  ["url", "משחק בודד"],
+  ["days5", "מנוי חודשי - 5 ימים"],
+  ["days4", "מנוי חודשי - 4 ימים"],
+  ["days3", "מנוי חודשי - 3 ימים"],
+  ["days2", "מנוי חודשי - 2 ימים"],
+  ["days1", "מנוי חודשי - יום אחד"]
+];
 const PAYMENT_LINK_FIELDS = [
-  ["url", "קישור לדף התשלום", "url"],
+  ...PAYMENT_LINK_URL_FIELDS.map(([key, label]) => [key, label, "url"]),
   ["firstName", "שם פרטי", "text"],
   ["lastName", "שם משפחה", "text"],
   ["idNumber", "ת.ז", "text"],
@@ -4137,19 +4155,19 @@ function PaymentLinkSettings({ settings, mutate }) {
       <div className="section-head">
         <div>
           <p className="eyebrow">תשלומים</p>
-          <h2>קישור תשלום</h2>
+          <h2>קישורי תשלום</h2>
         </div>
       </div>
-      <p className="muted">הקישור והפרטים מוצגים רק לשחקן שנשלח אליו קישור תשלום ועדיין לא סומן כשולם.</p>
+      <p className="muted">קישור לכל סוג תשלום. השחקן מקבל את הקישור המתאים לו (משחק בודד, או מנוי לפי מספר הימים שהוא משלם עליהם), והוא והפרטים מוצגים לו רק אחרי ששלחו לו קישור תשלום ועד שסומן כשולם.</p>
       <div className="form-grid payment-link-form">
         {PAYMENT_LINK_FIELDS.map(([key, label, type]) => (
-          <Field key={key} label={label} wide={key === "url"}>
+          <Field key={key} label={label} wide={type === "url"}>
             <input
               id={`payment-link-${key}`}
               type={type}
               dir="ltr"
               inputMode={key === "idNumber" ? "numeric" : undefined}
-              placeholder={key === "url" ? "https://" : ""}
+              placeholder={type === "url" ? "https://" : ""}
               value={draft[key]}
               onChange={(event) => setDraft((current) => ({ ...current, [key]: event.target.value }))}
             />
@@ -4159,7 +4177,7 @@ function PaymentLinkSettings({ settings, mutate }) {
       <button
         className="primary"
         disabled={!dirty}
-        onClick={() => mutate("/api/admin/settings/payment_link", { method: "PATCH", body: { value: draft }, success: "קישור התשלום נשמר" })}
+        onClick={() => mutate("/api/admin/settings/payment_link", { method: "PATCH", body: { value: draft }, success: "קישורי התשלום נשמרו" })}
       >
         שמירה
       </button>

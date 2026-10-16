@@ -683,8 +683,23 @@ app.get("/api/bootstrap", asyncRoute(async (_req, res) => {
     myRegistration?.payment_link_sent_at && !myRegistration.payment_confirmed && !roundOver &&
     !["cancelled", "not_attending"].includes(myRegistration.status)
   );
-  const payment = paymentLink?.url && (subscriptionDue || matchDue)
-    ? { ...paymentLink, forSubscription: subscriptionDue, forMatch: matchDue }
+  // Each request gets its own link: the one-time link for a fixture, and
+  // for the subscription the link matching the days this player pays for.
+  const matchUrl = matchDue ? paymentLink?.url || "" : "";
+  const subscriptionUrl = subscriptionDue
+    ? paymentLink?.[subscriptionLinkKey(subscriptionBillableDays(openSubscription.rows[0], user.credits))] || ""
+    : "";
+  const payment = matchUrl || subscriptionUrl
+    ? {
+        firstName: paymentLink.firstName,
+        lastName: paymentLink.lastName,
+        idNumber: paymentLink.idNumber,
+        phone: paymentLink.phone,
+        matchUrl,
+        subscriptionUrl,
+        forSubscription: Boolean(subscriptionUrl),
+        forMatch: Boolean(matchUrl)
+      }
     : null;
   res.json({
     user,
@@ -1013,15 +1028,11 @@ app.patch("/api/admin/settings/:key", asyncRoute(async (req, res) => {
   if (key === PAYMENT_LINK_KEY) {
     if (req.user.role !== "admin") return res.status(403).json({ error: "אין הרשאה לשנות את קישור התשלום" });
     const clean = (text) => String(text ?? "").trim().slice(0, 300);
-    value = {
-      url: clean(value?.url),
-      firstName: clean(value?.firstName),
-      lastName: clean(value?.lastName),
-      idNumber: clean(value?.idNumber),
-      phone: clean(value?.phone)
-    };
-    if (value.url && !/^https:\/\/[^\s]+$/i.test(value.url)) {
-      return res.status(400).json({ error: "קישור התשלום חייב להתחיל ב-https://" });
+    value = Object.fromEntries(
+      [...PAYMENT_LINK_URL_KEYS, "firstName", "lastName", "idNumber", "phone"].map((field) => [field, clean(value?.[field])])
+    );
+    if (PAYMENT_LINK_URL_KEYS.some((field) => value[field] && !/^https:\/\/[^\s]+$/i.test(value[field]))) {
+      return res.status(400).json({ error: "קישורי התשלום חייבים להתחיל ב-https://" });
     }
   }
   await query(
@@ -1234,20 +1245,36 @@ app.patch("/api/admin/subscriptions/:subId/signups/:signupId", asyncRoute(async 
 }));
 
 // ---- Payment links (see db/migrations/016_payment_links.sql) ----
+// The setting holds one link per kind of payment: "url" for a one-time
+// fixture, and "days1".."days5" for a monthly subscription of that many
+// days (the admin can change any of them at any time).
 const PAYMENT_LINK_KEY = "payment_link";
+const MAX_SUBSCRIPTION_LINK_DAYS = 5;
+const PAYMENT_LINK_URL_KEYS = ["url", ...Array.from({ length: MAX_SUBSCRIPTION_LINK_DAYS }, (_, index) => `days${index + 1}`)];
 
-async function paymentLinkFor(orgId) {
+function subscriptionLinkKey(days) {
+  return days >= 1 && days <= MAX_SUBSCRIPTION_LINK_DAYS ? `days${days}` : null;
+}
+
+// The days a player actually pays for: the month's game days minus their
+// credits, matching amount_due in subscriptionWithSignups.
+function subscriptionBillableDays(subscription, credits) {
+  const days = Array.isArray(subscription?.match_dates) ? subscription.match_dates.length : 0;
+  return Math.max(days - (Number(credits) || 0), 0);
+}
+
+async function paymentLinkFor(orgId, linkKey) {
   const { rows } = await query("SELECT value FROM settings WHERE org_id = $1 AND key = $2", [orgId, PAYMENT_LINK_KEY]);
-  return rows[0]?.value?.url ? rows[0].value : null;
+  return (linkKey && rows[0]?.value?.[linkKey]) || null;
 }
 
 // Stamps the request time and tells the player; their home screen then shows
 // the payment card until the admin marks them paid.
-async function sendPaymentLink(req, res, { table, rowId, playerId, body }) {
+async function sendPaymentLink(req, res, { table, rowId, playerId, body, linkKey, linkLabel }) {
   if (req.user.role !== "admin") return res.status(403).json({ error: "אין הרשאה לשלוח קישור תשלום" });
   const orgId = req.user.org_id;
-  if (!(await paymentLinkFor(orgId))) {
-    return res.status(400).json({ error: "לא הוגדר קישור תשלום. אפשר להגדיר אותו בלשונית הגדרות." });
+  if (!(await paymentLinkFor(orgId, linkKey))) {
+    return res.status(400).json({ error: `לא הוגדר קישור תשלום ${linkLabel}. אפשר להגדיר אותו בלשונית הגדרות.` });
   }
   await query(`UPDATE ${table} SET payment_link_sent_at = now() WHERE id = $1 AND org_id = $2`, [rowId, orgId]);
   const { rows: players } = await query("SELECT id, full_name FROM players WHERE id = $1", [playerId]);
@@ -1260,15 +1287,24 @@ async function sendPaymentLink(req, res, { table, rowId, playerId, body }) {
 app.post("/api/admin/subscriptions/:subId/signups/:signupId/payment-link", asyncRoute(async (req, res) => {
   const { subId, signupId } = req.params;
   const { rows } = await query(
-    `SELECT s.id, s.player_id, s.paid, m.year, m.month
-     FROM subscription_signups s JOIN monthly_subscriptions m ON m.id = s.subscription_id
+    `SELECT s.id, s.player_id, s.paid, m.year, m.month, m.match_dates, p.credits
+     FROM subscription_signups s
+     JOIN monthly_subscriptions m ON m.id = s.subscription_id
+     JOIN players p ON p.id = s.player_id
      WHERE s.id = $1 AND s.subscription_id = $2 AND s.org_id = $3`,
     [signupId, subId, req.user.org_id]
   );
   const signup = rows[0];
   if (!signup) return res.status(404).json({ error: "ההרשמה למנוי לא נמצאה" });
   if (signup.paid) return res.status(400).json({ error: "המנוי כבר סומן כשולם" });
+  const days = subscriptionBillableDays(signup, signup.credits);
+  if (days === 0) return res.status(400).json({ error: "אין סכום לתשלום על המנוי" });
+  if (days > MAX_SUBSCRIPTION_LINK_DAYS) {
+    return res.status(400).json({ error: `יש קישורי תשלום למנוי של עד ${MAX_SUBSCRIPTION_LINK_DAYS} ימים` });
+  }
   return sendPaymentLink(req, res, {
+    linkKey: subscriptionLinkKey(days),
+    linkLabel: days === 1 ? "למנוי של יום אחד" : `למנוי של ${days} ימים`,
     table: "subscription_signups",
     rowId: signup.id,
     playerId: signup.player_id,
@@ -1290,6 +1326,8 @@ app.post("/api/admin/registrations/:registrationId/payment-link", asyncRoute(asy
   if (["cancelled", "not_attending"].includes(registration.status)) return res.status(400).json({ error: "השחקן לא רשום למחזור" });
   if (["finished", "stats_published"].includes(registration.match_status)) return res.status(400).json({ error: "המשחק כבר הסתיים" });
   return sendPaymentLink(req, res, {
+    linkKey: "url",
+    linkLabel: "למשחק בודד",
     table: "registrations",
     rowId: registration.id,
     playerId: registration.player_id,
