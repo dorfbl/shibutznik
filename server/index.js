@@ -708,7 +708,15 @@ app.get("/api/bootstrap", asyncRoute(async (_req, res) => {
 app.get("/api/matches/:matchId/bundle", asyncRoute(async (req, res) => {
   const user = await currentUser(req);
   if (!user) return res.status(401).json({ error: "נדרשת התחברות" });
-  const bundle = await getMatchBundle(req.params.matchId, false, user.org_id);
+  // Any org the caller is a member of, not just the active one: player
+  // history (/api/players/:id/stats) lists the player's home-org fixtures,
+  // which a multi-org player may open while another org is active.
+  const { rows: owner } = await query("SELECT org_id FROM matches WHERE id = $1", [req.params.matchId]);
+  const orgId = owner[0]?.org_id;
+  if (!orgId || !user.organizations.some((row) => row.org_id === orgId)) {
+    return res.status(404).json({ error: "המשחק לא נמצא" });
+  }
+  const bundle = await getMatchBundle(req.params.matchId, false, orgId);
   if (!bundle.match) return res.status(404).json({ error: "המשחק לא נמצא" });
   res.json(bundle);
 }));
