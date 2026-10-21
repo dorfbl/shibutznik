@@ -5072,3 +5072,92 @@ button.pitch-field-title:disabled { opacity: 1; }
 @media (prefers-reduced-motion: reduce) {
   .segmented, .segmented.nav-hidden, .app-shell { transition: none; }
 }
+
+/* ==========================================================================
+   FIXTURE STATS — per-pitch tabs, compact table, results, scorers
+   ========================================================================== */
+.pitch-tabs button { display: inline-flex; align-items: center; gap: 7px; }
+.pitch-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+.stats-table { border-spacing: 0 6px; }
+.stats-table th:not(:nth-child(2)), .stats-table td.num { text-align: center; }
+.stats-table td { padding: 9px 8px; }
+.stats-table td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.stats-table tr.is-me td { background: var(--acc-dim); border-color: color-mix(in srgb, var(--acc) 45%, transparent); }
+.stats-team { display: flex; flex-direction: column; gap: 4px; min-width: 110px; }
+.stats-team-name { display: inline-flex; align-items: center; gap: 7px; font-weight: 700; }
+.stats-team small { font-size: .72rem; }
+.rate-bar { display: block; height: 4px; border-radius: 999px; background: var(--surface-3); overflow: hidden; }
+.rate-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--turf); }
+.me-tag {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--acc);
+  color: var(--acc-ink);
+  font-size: .68rem;
+  font-weight: 800;
+}
+
+.result-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.result-row {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--sunken);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md);
+}
+.result-row.is-me { border-color: color-mix(in srgb, var(--acc) 45%, transparent); background: var(--acc-dim); }
+.result-num { color: var(--ink-4); font-size: .74rem; font-weight: 700; text-align: center; }
+.result-team { display: inline-flex; align-items: center; gap: 7px; min-width: 0; color: var(--ink-3); font-size: .88rem; overflow-wrap: anywhere; }
+.result-team-end { justify-content: flex-end; }
+.result-team.won { color: var(--ink); font-weight: 800; }
+.result-score {
+  min-width: 64px;
+  padding: 4px 10px;
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+  text-align: center;
+  font-size: 1.02rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.scorer-list { display: flex; flex-direction: column; gap: 6px; }
+.scorer-row {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) 56px 56px;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  background: var(--sunken);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md);
+}
+.scorer-row.is-me { border-color: color-mix(in srgb, var(--acc) 45%, transparent); background: var(--acc-dim); }
+.scorer-row .num { text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; }
+.scorer-head { padding-block: 0; background: none; border: 0; color: var(--ink-4); font-size: .72rem; font-weight: 700; }
+.scorer-head span:nth-child(n+3) { text-align: center; }
+.scorer-name { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.scorer-name strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+@media (max-width: 560px) {
+  /* Every column has to fit a ~300px card without scrolling sideways: tight
+     cells, no min widths, and the row highlight alone marks your team. */
+  .stats-table { border-spacing: 0 4px; font-size: .78rem; }
+  .stats-table td { padding: 7px 3px; font-size: .78rem; }
+  .stats-table td:first-child { padding-inline-start: 5px; }
+  .stats-table td:last-child { padding-inline-end: 5px; }
+  .stats-table thead th { padding: 0 3px 4px; font-size: .64rem; letter-spacing: 0; }
+  .stats-table .rank-badge-sm { min-width: 18px; height: 18px; font-size: .66rem; }
+  .stats-table .assignment-swatch { width: 10px; height: 10px; }
+  .stats-team { min-width: 0; gap: 3px; }
+  .stats-team-name { gap: 4px; overflow-wrap: anywhere; }
+  .stats-team small, .stats-table .me-tag { display: none; }
+  .rate-bar { height: 3px; }
+  .result-row { gap: 6px; padding: 9px 10px; }
+  .result-score { min-width: 54px; padding-inline: 6px; }
+  .scorer-row { grid-template-columns: 24px minmax(0, 1fr) 46px 46px; gap: 6px; }
+}

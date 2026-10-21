@@ -36,14 +36,12 @@ import {
   Moon,
   MoreVertical,
   Pencil,
-  Percent,
   Plus,
   RotateCcw,
   RotateCw,
   Search,
   Send,
   Settings,
-  ShieldAlert,
   SlidersHorizontal,
   Sparkles,
   Sun,
@@ -597,7 +595,7 @@ function App() {
             <ResultsUnavailableNotice squadPublished={squadPublished} status={data.activeMatch?.match?.status} />
           )
         )}
-        {view === "stats" && <StatsView bundle={data.activeMatch} players={data.players} selectedPlayer={selectedPlayer} />}
+        {view === "stats" && <StatsView bundle={data.activeMatch} selectedPlayer={selectedPlayer} />}
         {view === "admin" && ["admin", "stats_admin"].includes(currentUser?.role) && (
           <AdminView
             data={adminData}
@@ -2552,23 +2550,7 @@ function FixtureStatsOverlay({ matchId, currentUser, onClose }) {
                 <p className="muted">התוצאות, הטבלה והמצטיינים יוצגו כאן אחרי שהאדמין מפרסם אותם.</p>
               </article>
             ) : (
-              <div className="stack">
-                {bundle.standouts?.length > 0 && (
-                  <article className="glass">
-                    <p className="eyebrow">מצטייני המחזור</p>
-                    <div className="standouts">
-                      {bundle.standouts.map((item) => (
-                        <div className="standout" key={item.player_id}>
-                          <img src={item.avatar_url} alt="" />
-                          <strong>{item.full_name}</strong>
-                          <small>{item.reason}</small>
-                        </div>
-                      ))}
-                    </div>
-                  </article>
-                )}
-                {bundle.pitches.map((pitch) => <PitchStats key={pitch.id} pitch={pitch} goals={bundle.goals} />)}
-              </div>
+              <FixtureStatsBody bundle={bundle} playerId={currentUser?.id} />
             )}
           </>
         )}
@@ -2578,9 +2560,7 @@ function FixtureStatsOverlay({ matchId, currentUser, onClose }) {
   );
 }
 
-function StatsView({ bundle }) {
-  const pitches = bundle?.pitches || [];
-  const [pitchId, setPitchId] = useState(pitches[0]?.id || "");
+function StatsView({ bundle, selectedPlayer }) {
   if (!statsVisible(bundle?.match?.status)) {
     return (
       <section className="stack">
@@ -2598,38 +2578,69 @@ function StatsView({ bundle }) {
       </section>
     );
   }
-  const pitch = pitches.find((item) => item.id === pitchId) || pitches[0];
   return (
     <section className="stack">
-      <article className="glass">
-        <p className="eyebrow">מצטייני המחזור</p>
-        <h2>{bundle?.match?.title}{bundle?.match?.match_date ? ` · ${formatDate(bundle.match.match_date)}` : ""}</h2>
-        <div className="standouts">
-          {bundle.standouts.map((item) => (
-            <div className="standout" key={item.player_id}>
-              <img src={item.avatar_url} alt="" />
-              <strong>{item.full_name}</strong>
-              <small>{item.reason}</small>
-            </div>
-          ))}
+      <article className="glass page-title">
+        <div>
+          <p className="eyebrow">סטטיסטיקות</p>
+          <h2>{bundle?.match?.title}</h2>
         </div>
+        {bundle?.match?.match_date && <span className="pill">{formatDate(bundle.match.match_date)}</span>}
       </article>
-
-      {pitches.length > 0 && (
-        <>
-          {pitches.length > 1 && (
-            <nav className="admin-tabs pitch-tabs">
-              {pitches.map((item) => (
-                <button key={item.id} className={item.id === pitch?.id ? "active" : ""} onClick={() => setPitchId(item.id)}>
-                  {item.label}
-                </button>
-              ))}
-            </nav>
-          )}
-          {pitch && <PitchStats pitch={pitch} goals={bundle.goals} />}
-        </>
-      )}
+      <FixtureStatsBody bundle={bundle} playerId={selectedPlayer?.id} />
     </section>
+  );
+}
+
+function teamOfPlayer(pitch, playerId) {
+  return playerId ? pitch.teams.find((team) => team.players.some((player) => player.id === playerId)) : undefined;
+}
+
+// One fixture's published stats: the standouts, then one tab per pitch —
+// shared by the stats tab (current match) and FixtureStatsOverlay (any past
+// fixture). Opens on the viewer's own pitch when they played in it.
+function FixtureStatsBody({ bundle, playerId }) {
+  const pitches = bundle?.pitches || [];
+  const myPitchId = pitches.find((item) => teamOfPlayer(item, playerId))?.id;
+  const [pitchId, setPitchId] = useState(myPitchId || pitches[0]?.id || "");
+  const pitch = pitches.find((item) => item.id === pitchId) || pitches[0];
+  return (
+    <div className="stack">
+      {bundle.standouts?.length > 0 && (
+        <article className="glass">
+          <p className="eyebrow">מצטייני המחזור</p>
+          <div className="standouts">
+            {bundle.standouts.map((item) => (
+              <div className="standout" key={item.player_id}>
+                <img src={item.avatar_url} alt="" />
+                <strong>{item.full_name}</strong>
+                <small>{item.reason}</small>
+              </div>
+            ))}
+          </div>
+        </article>
+      )}
+      {pitches.length > 1 && (
+        <nav className="admin-tabs pitch-tabs" role="tablist" aria-label="מגרשים">
+          {pitches.map((item) => {
+            const myTeam = teamOfPlayer(item, playerId);
+            return (
+              <button
+                key={item.id}
+                role="tab"
+                aria-selected={item.id === pitch?.id}
+                className={item.id === pitch?.id ? "active" : ""}
+                onClick={() => setPitchId(item.id)}
+              >
+                {myTeam && <span className="assignment-swatch" style={{ background: myTeam.color_hex }} aria-hidden="true" />}
+                {item.label}
+              </button>
+            );
+          })}
+        </nav>
+      )}
+      {pitch && <PitchStats key={pitch.id} pitch={pitch} goals={bundle.goals || []} playerId={playerId} />}
+    </div>
   );
 }
 
@@ -2676,37 +2687,66 @@ function pitchPlayerStats(pitch, goals) {
     .sort((a, b) => b.goals - a.goals || b.assists - a.assists || a.full_name.localeCompare(b.full_name));
 }
 
-function PitchStats({ pitch, goals }) {
+function formatSigned(value) {
+  return value > 0 ? `+${value}` : String(value);
+}
+
+// One pitch, top to bottom in the order people look for things: a quick
+// summary, the table, every game's score, then who scored. The viewer's
+// own team and name are highlighted throughout.
+function PitchStats({ pitch, goals, playerId }) {
   const standings = pitchStandingsDetailed(pitch);
   const players = pitchPlayerStats(pitch, goals);
+  const myTeam = teamOfPlayer(pitch, playerId);
+  const teamById = new Map(pitch.teams.map((team) => [team.id, team]));
+  const played = pitch.games.filter((game) => game.team_a_goals != null && game.team_b_goals != null);
+  const totalGoals = played.reduce((sum, game) => sum + game.team_a_goals + game.team_b_goals, 0);
   return (
     <div className="stack">
+      <div className="stat-grid pitch-summary">
+        <Metric icon={Flag} label="משחקים" value={played.length} />
+        <Metric icon={Goal} label="שערים" value={totalGoals} />
+        <Metric icon={Activity} label="שערים למשחק" value={played.length ? (totalGoals / played.length).toFixed(1) : "0"} />
+      </div>
+
       {standings.length > 0 && (
         <article className="glass">
-          <p className="eyebrow">טבלת {pitch.label}</p>
+          <p className="eyebrow">טבלה · {pitch.label}</p>
           <div className="table-wrap">
-            <table>
+            <table className="stats-table">
               <thead>
                 <tr>
-                  <th>#</th><th>קבוצה</th><th>מש׳</th><th>נצ׳</th><th>תיקו</th><th>הפ׳</th><th>זכות</th><th>חובה</th><th>הפרש</th><th>נק׳</th>
+                  <th>#</th>
+                  <th>קבוצה</th>
+                  <th title="משחקים">מש׳</th>
+                  <th title="ניצחונות־תיקו־הפסדים">נ־ת־ה</th>
+                  <th title="זכות:חובה">שע׳</th>
+                  <th>הפרש</th>
+                  <th>נק׳</th>
                 </tr>
               </thead>
               <tbody>
                 {standings.map((team, index) => (
-                  <tr key={team.id}>
-                    <td><span className={`rank-badge ${index === 0 ? "rank-1" : ""}`}>{index + 1}</span></td>
+                  <tr key={team.id} className={team.id === myTeam?.id ? "is-me" : ""}>
+                    <td><span className={`rank-badge rank-badge-sm ${index === 0 ? "rank-1" : ""}`}>{index + 1}</span></td>
                     <td className="team-name-cell">
-                      <span className="assignment-swatch" style={{ background: team.color_hex }} aria-hidden="true" />
-                      {team.color_name}
+                      <div className="stats-team">
+                        <span className="stats-team-name">
+                          <span className="assignment-swatch" style={{ background: team.color_hex }} aria-hidden="true" />
+                          {team.color_name}
+                          {team.id === myTeam?.id && <span className="me-tag">שלך</span>}
+                        </span>
+                        <span className="rate-bar" title="אחוז הצלחה">
+                          <span style={{ width: `${team.success_rate}%` }} />
+                        </span>
+                        <small className="muted">{Math.round(team.success_rate)}% הצלחה</small>
+                      </div>
                     </td>
-                    <td>{team.mp}</td>
-                    <td>{team.stats.wins}</td>
-                    <td>{team.draws}</td>
-                    <td>{team.losses}</td>
-                    <td>{team.stats.goals_for}</td>
-                    <td>{team.stats.goals_against}</td>
-                    <td>{team.goal_diff > 0 ? `+${team.goal_diff}` : team.goal_diff}</td>
-                    <td><strong>{team.stats.points}</strong></td>
+                    <td className="num">{team.mp}</td>
+                    <td className="num" dir="ltr">{team.stats.wins}-{team.draws}-{team.losses}</td>
+                    <td className="num" dir="ltr">{team.stats.goals_for}:{team.stats.goals_against}</td>
+                    <td className="num" dir="ltr">{formatSigned(team.goal_diff)}</td>
+                    <td className="num"><strong>{team.stats.points}</strong></td>
                   </tr>
                 ))}
               </tbody>
@@ -2715,37 +2755,61 @@ function PitchStats({ pitch, goals }) {
         </article>
       )}
 
-      {standings.length > 0 && (
-        <div className="grid three">
-          {standings.map((team) => (
-            <article className="glass" key={team.id}>
-              <div className="team-card-head">
-                <span className="assignment-swatch" style={{ background: team.color_hex }} aria-hidden="true" />
-                <h3>{team.color_name}</h3>
-              </div>
-              <div className="stat-grid">
-                <Metric icon={Percent} label="אחוז הצלחה" value={`${team.success_rate.toFixed(2)}%`} />
-                <Metric icon={Goal} label="שערים למשחק" value={team.goals_per_game.toFixed(2)} />
-                <Metric icon={ShieldAlert} label="ספיגה למשחק" value={team.goals_against_per_game.toFixed(2)} />
-              </div>
-            </article>
-          ))}
-        </div>
+      {pitch.games.length > 0 && (
+        <article className="glass">
+          <p className="eyebrow">תוצאות · {pitch.label}</p>
+          <ol className="result-list">
+            {pitch.games.map((game, index) => {
+              const teamA = teamById.get(game.team_a_id);
+              const teamB = teamById.get(game.team_b_id);
+              if (!teamA || !teamB) return null;
+              const done = game.team_a_goals != null && game.team_b_goals != null;
+              const aWon = done && game.team_a_goals > game.team_b_goals;
+              const bWon = done && game.team_b_goals > game.team_a_goals;
+              const mine = myTeam && (myTeam.id === teamA.id || myTeam.id === teamB.id);
+              return (
+                <li key={game.id} className={`result-row${mine ? " is-me" : ""}`}>
+                  <span className="result-num">{index + 1}</span>
+                  <span className={`result-team${aWon ? " won" : ""}`}>
+                    <span className="assignment-swatch" style={{ background: teamA.color_hex }} aria-hidden="true" />
+                    {teamA.color_name}
+                  </span>
+                  {/* LTR with B first so team A's goals sit on its own (right) side. */}
+                  <strong className="result-score" dir="ltr">
+                    {done ? `${game.team_b_goals} - ${game.team_a_goals}` : "—"}
+                  </strong>
+                  <span className={`result-team result-team-end${bWon ? " won" : ""}`}>
+                    {teamB.color_name}
+                    <span className="assignment-swatch" style={{ background: teamB.color_hex }} aria-hidden="true" />
+                  </span>
+                </li>
+              );
+            })}
+          </ol>
+        </article>
       )}
 
       <article className="glass">
         <p className="eyebrow">כובשים ומבשלים · {pitch.label}</p>
         {players.length === 0 ? (
-          <p className="muted">אף שחקן לא כבש או בישל במגרש הזה עדיין.</p>
+          <p className="muted">אף שחקן לא כבש או בישל במגרש הזה.</p>
         ) : (
-          <div className="standings player-tally-list">
+          <div className="scorer-list">
+            <div className="scorer-row scorer-head" aria-hidden="true">
+              <span />
+              <span>שחקן</span>
+              <span>שערים</span>
+              <span>בישולים</span>
+            </div>
             {players.map((player, index) => (
-              <div className="standing-row player-tally-row" key={player.id}>
+              <div className={`scorer-row${player.id === playerId ? " is-me" : ""}`} key={player.id}>
                 <span className={`rank-badge rank-badge-sm ${index === 0 ? "rank-1" : ""}`}>{index + 1}</span>
-                <span className="assignment-swatch" style={{ background: player.color_hex }} aria-hidden="true" />
-                <strong>{player.full_name}</strong>
-                <span><Goal size={14} /> {player.goals}</span>
-                <span><Activity size={14} /> {player.assists}</span>
+                <span className="scorer-name">
+                  <span className="assignment-swatch" style={{ background: player.color_hex }} aria-hidden="true" />
+                  <strong>{player.full_name}</strong>
+                </span>
+                <span className="num">{player.goals}</span>
+                <span className="num">{player.assists}</span>
               </div>
             ))}
           </div>
