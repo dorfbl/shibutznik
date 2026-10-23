@@ -303,6 +303,7 @@ function App() {
   // mounted (tab stayed open in the background past the hour) — AdminView's
   // own tab state won't re-read localStorage on its own, so it watches this.
   const [adminTabResetSignal, setAdminTabResetSignal] = useState(0);
+  const [adminTabRequest, setAdminTabRequest] = useState(null);
   useEffect(() => {
     localStorage.setItem("badat:view", view);
   }, [view]);
@@ -352,6 +353,14 @@ function App() {
     adminMatchIdRef.current = id;
     setAdminMatchId(id);
   }
+  // Which monthly subscription the admin is looking at — null lets the
+  // server pick (the draft being prepared, else the latest). A ref for the
+  // same same-tick reason as adminMatchIdRef above.
+  const adminSubscriptionIdRef = React.useRef(null);
+  function selectAdminSubscription(id) {
+    adminSubscriptionIdRef.current = id;
+    loadAdmin();
+  }
   const [toast, setToast] = useState(null);
   const [confirm, setConfirm] = useState(null);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -362,8 +371,22 @@ function App() {
   const unreadNotifCount = (data?.notifications || []).filter(
     (row) => new Date(row.created_at).getTime() > notifSeenAt
   ).length;
+  // Action items (see todoItems below) are live state, not stored rows, so
+  // "read" and "removed" are remembered locally by each item's id — an id
+  // that changes (a new fixture, a new join request) shows up as new again.
+  const [todoSeen, setTodoSeen] = useState(() => readStoredIdSet("badat:todo-seen"));
+  const [todoDismissed, setTodoDismissed] = useState(() => readStoredIdSet("badat:todo-dismissed"));
+  function markTodoSeen() {
+    setTodoSeen((current) => storeIdSet("badat:todo-seen", [...current, ...todoItems.map((item) => item.id)]));
+  }
+  function dismissTodo(id) {
+    setTodoDismissed((current) => storeIdSet("badat:todo-dismissed", [...current, id]));
+  }
   function openNotifications() {
     setNotifOpen(true);
+    markTodoSeen();
+    // Fresh admin counts for the action items, whatever view this is.
+    if (currentUser?.role === "admin") loadAdmin();
     const now = Date.now();
     localStorage.setItem("badat:notifications-seen-at", String(now));
     setNotifSeenAt(now);
@@ -383,6 +406,53 @@ function App() {
   // nothing to record right now (squad not published yet vs. published but
   // you're not on a team) instead of just disappearing.
   const myAssignment = findAssignment(data?.activeMatch, selectedPlayer?.id);
+
+  // The bell's action items: everything waiting on this person,
+  // derived from live state (no dismiss flag), so an item disappears as soon
+  // as it's handled. Each one jumps to the place that handles it.
+  function goToHomeCard(anchorId) {
+    setNotifOpen(false);
+    setView("player");
+    // After the sheet unmounts (it restores the old scroll position first).
+    setTimeout(() => document.getElementById(anchorId)?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+  }
+  function goToAdminTab(tab) {
+    setNotifOpen(false);
+    setView("admin");
+    setAdminTabRequest({ tab, at: Date.now() });
+  }
+  const allTodoItems = [];
+  const myHomeRegistration = data?.activeMatch?.registrations?.find((item) => item.player_id === selectedPlayer?.id);
+  if (canPlayerRegister(data?.activeMatch?.match, selectedPlayer) && !myHomeRegistration) {
+    allTodoItems.push({ key: "fixture", id: `fixture:${data?.activeMatch?.match?.id}`, icon: CalendarDays, text: "ההרשמה למחזור הקרוב פתוחה", cta: "להרשמה", onClick: () => goToHomeCard("home-fixture") });
+  }
+  if (data?.subscription && !data.subscription.mySignup) {
+    allTodoItems.push({
+      key: "subscription",
+      id: `subscription:${data.subscription.id}`,
+      icon: Crown,
+      text: `מנוי חודשי ל${monthLabel(data.subscription.year, data.subscription.month)} נפתח`,
+      cta: "להצטרפות",
+      onClick: () => goToHomeCard("home-subscription")
+    });
+  }
+  if (data?.payment) {
+    allTodoItems.push({ key: "payment", id: `payment:${data.payment.matchUrl ? data?.activeMatch?.match?.id : ""}:${data.payment.subscriptionUrl ? data?.subscription?.id : ""}`, icon: Wallet, text: "יש לך תשלום שממתין", cta: "לתשלום", onClick: () => goToHomeCard("home-payment") });
+  }
+  if (currentUser?.role === "admin" && adminData) {
+    const count = (rows) => rows?.length || 0;
+    const idsOf = (rows, field = "id") => (rows || []).map((row) => row[field]).sort().join(",");
+    const joins = count(adminData.pendingJoinRequests);
+    const payments = count(adminData.pendingPayments);
+    const cancels = count(adminData.pendingCancellations);
+    const shortTeamCount = count(adminData.understaffedTeams);
+    if (joins) allTodoItems.push({ key: "joins", id: `joins:${idsOf(adminData.pendingJoinRequests)}`, admin: true, icon: UserPlus, text: joins === 1 ? "בקשת הצטרפות ממתינה לאישור" : `${joins} בקשות הצטרפות ממתינות לאישור`, cta: "לאישור", onClick: () => goToAdminTab("players") });
+    if (payments) allTodoItems.push({ key: "payments", id: `payments:${idsOf(adminData.pendingPayments)}`, admin: true, icon: Wallet, text: payments === 1 ? "תשלום ממתין לאישור" : `${payments} תשלומים ממתינים לאישור`, cta: "לתשלומים", onClick: () => goToAdminTab("registration") });
+    if (cancels) allTodoItems.push({ key: "cancels", id: `cancels:${idsOf(adminData.pendingCancellations)}`, admin: true, icon: CircleAlert, text: cancels === 1 ? "בקשת ביטול ממתינה לטיפול" : `${cancels} בקשות ביטול ממתינות לטיפול`, cta: "לטיפול", onClick: () => goToAdminTab("registration") });
+    if (shortTeamCount) allTodoItems.push({ key: "short", id: `short:${idsOf(adminData.understaffedTeams, "team_id")}:${shortTeamCount}`, admin: true, icon: Users, text: shortTeamCount === 1 ? "קבוצה חסרה שחקנים" : `${shortTeamCount} קבוצות חסרות שחקנים`, cta: "לבנאי הקבוצות", onClick: () => goToAdminTab("teams") });
+  }
+  const todoItems = allTodoItems.filter((item) => !todoDismissed.has(item.id));
+  const unseenTodoCount = todoItems.filter((item) => !todoSeen.has(item.id)).length;
   // Results recording opens the moment lineups are published (players record
   // it live, during the match) and stays open through "finished" — never once
   // an admin has already published final stats.
@@ -403,7 +473,10 @@ function App() {
 
   async function loadAdmin() {
     if (!["admin", "stats_admin"].includes(currentUser?.role)) return;
-    const suffix = adminMatchIdRef.current ? `?matchId=${adminMatchIdRef.current}` : "";
+    const params = new URLSearchParams();
+    if (adminMatchIdRef.current) params.set("matchId", adminMatchIdRef.current);
+    if (adminSubscriptionIdRef.current) params.set("subscriptionId", adminSubscriptionIdRef.current);
+    const suffix = params.size ? `?${params}` : "";
     const response = await fetch(`${API}/api/admin${suffix}`, { headers: authHeaders(currentUser) });
     const payload = await response.json();
     if (!response.ok) {
@@ -417,6 +490,11 @@ function App() {
   useEffect(() => {
     if (view === "admin") loadAdmin();
   }, [view, currentUser?.id, currentUser?.org_id, adminMatchId]);
+  // Admins need the admin counts for the bell even before opening admin mode.
+  useEffect(() => {
+    if (currentUser?.role === "admin" && view !== "admin") loadAdmin();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id, currentUser?.org_id, currentUser?.role]);
 
   // Tell the admin as soon as a lineup slot opens up (e.g. a late cancellation),
   // rather than waiting for them to notice the panel.
@@ -521,7 +599,9 @@ function App() {
               title="התראות"
             >
               <Bell size={18} />
-              {unreadNotifCount > 0 && <span className="notif-badge">{unreadNotifCount > 9 ? "9+" : unreadNotifCount}</span>}
+              {unreadNotifCount + unseenTodoCount > 0 && (
+                <span className="notif-badge">{unreadNotifCount + unseenTodoCount > 9 ? "9+" : unreadNotifCount + unseenTodoCount}</span>
+              )}
             </button>
             <ThemeToggle theme={theme} onToggle={toggleTheme} />
             <button className="ghost icon-only" onClick={logout} aria-label="התנתק" title="התנתק">
@@ -532,7 +612,9 @@ function App() {
         {notifOpen && (
           <NotificationCenter
             notifications={data?.notifications || []}
-            onClose={() => setNotifOpen(false)}
+            todoItems={todoItems}
+            onDismissTodo={dismissTodo}
+            onClose={() => { markTodoSeen(); setNotifOpen(false); }}
             onDeleted={reload}
             setToast={setToast}
           />
@@ -604,9 +686,11 @@ function App() {
             user={currentUser}
             selectedMatchId={adminMatchId}
             setSelectedMatchId={setAdminMatchIdSynced}
+            selectSubscription={selectAdminSubscription}
             setToast={setToast}
             askConfirm={(options) => setConfirm({ ...options, dialogId: `${Date.now()}-${Math.random()}` })}
             forceControlTabSignal={adminTabResetSignal}
+            tabRequest={adminTabRequest}
           />
         )}
         {view === "platform" && currentUser?.is_platform_admin && (
@@ -999,53 +1083,11 @@ function PlayerHome({ player, bundle, subscription, reload, setToast, askConfirm
     });
   }
 
-  async function subscribeToOpenSubscription() {
-    const response = await fetch(`${API}/api/subscriptions/${subscription.id}/signup`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify({ playerId: player.id })
-    });
-    if (!response.ok) {
-      const payload = await response.json().catch(() => ({}));
-      showToast(setToast, payload.error || "ההצטרפות נכשלה", "error");
-      return;
-    }
-    await reload();
-    showToast(setToast, "נרשמת למנוי", "success");
-  }
-
-  // The page's own layout never moves — this only decides what shows up in
-  // the "דורש טיפול" panel at the top, which empties out (and disappears)
-  // on its own as each item gets addressed and reload() brings fresh data.
-  const actionItems = [];
-  if (canRegister && !registration) {
-    actionItems.push({
-      key: "fixture",
-      icon: CalendarDays,
-      text: "ההרשמה למחזור הקרוב פתוחה",
-      action: (
-        <div className="action-item-buttons">
-          <button className="primary" onClick={() => submit(true)}>אני מגיע</button>
-          <button onClick={() => submit(false)}>לא מגיע</button>
-        </div>
-      )
-    });
-  }
-  if (subscription && !subscription.mySignup) {
-    actionItems.push({
-      key: "subscription",
-      icon: Wallet,
-      text: `מנוי חודשי ל${monthLabel(subscription.year, subscription.month)} נפתח`,
-      action: <button className="primary" onClick={subscribeToOpenSubscription}>הצטרפות למנוי</button>
-    });
-  }
-
   return (
     <section className="grid two">
       <PushNotificationPrompt player={player} setToast={setToast} />
-      <ActionItemsPanel items={actionItems} />
       <PaymentCard payment={payment} subscription={subscription} setToast={setToast} />
-      <article className="hero-panel glass">
+      <article className="hero-panel glass" id="home-fixture">
         <div className="hero-copy">
           <p className="eyebrow"><CalendarDays size={13} /> {isRoundOver(bundle?.match?.status) ? "המשחק האחרון" : "המשחק הקרוב"}</p>
           {/* The date/time is the one fact a player actually needs at a glance —
@@ -1136,7 +1178,7 @@ function PlayerHome({ player, bundle, subscription, reload, setToast, askConfirm
 
       <RecentMatch bundle={bundle} player={player} />
       {subscription && (
-        <SubscriptionCard subscription={subscription} player={player} reload={reload} setToast={setToast} askConfirm={askConfirm} wide />
+        <SubscriptionCard subscription={subscription} player={player} reload={reload} setToast={setToast} askConfirm={askConfirm} wide anchorId="home-subscription" />
       )}
       <MyHistoryCard player={player} />
     </section>
@@ -1172,7 +1214,7 @@ function PaymentCard({ payment, subscription, setToast }) {
   }
 
   return (
-    <article className="glass payment-card wide">
+    <article className="glass payment-card wide" id="home-payment">
       <p className="eyebrow"><Wallet size={13} /> תשלום</p>
       <h2>{title}</h2>
       {details.length > 0 && (
@@ -1202,30 +1244,6 @@ function PaymentCard({ payment, subscription, setToast }) {
         </a>
       )}
       <p className="muted">אחרי התשלום, ההרשמה תאושר ידנית והסטטוס יתעדכן כאן.</p>
-    </article>
-  );
-}
-
-// The one dynamic thing on an otherwise-static home page: a compact "needs
-// your attention" summary at the very top, so a new fixture registration or
-// a freshly published subscription doesn't get missed among static cards
-// further down. Empties out (and disappears) on its own — items come from
-// live state in PlayerHome, not a dismiss flag, so addressing one (or an
-// admin closing the window) removes it immediately on the next reload.
-function ActionItemsPanel({ items }) {
-  if (!items.length) return null;
-  return (
-    <article className="glass action-items wide">
-      <p className="eyebrow">דורש טיפול</p>
-      <div className="action-items-list">
-        {items.map((item) => (
-          <div className="action-item-row" key={item.key}>
-            <item.icon size={18} className="action-item-icon" aria-hidden="true" />
-            <span>{item.text}</span>
-            {item.action}
-          </div>
-        ))}
-      </div>
     </article>
   );
 }
@@ -1882,39 +1900,30 @@ function MyHistoryCard({ player }) {
   const history = stats?.history || [];
   const selected = history.find((row) => row.match_id === matchId);
 
+  // Compact: picker, then one line with team, goals and assists.
   return (
-    <article className="glass wide">
-      <div className="section-head">
-        <div>
-          <p className="eyebrow">ההיסטוריה שלי</p>
-          <h2>איך שיחקתי במחזור?</h2>
-        </div>
-      </div>
+    <article className="glass history-card">
+      <p className="eyebrow">ההיסטוריה שלי</p>
       {history.length === 0 ? (
         <p className="muted">עדיין אין משחקים להצגה.</p>
       ) : (
         <>
-          <label className="field" style={{ maxWidth: 320 }}>
-            <span>בחר מחזור</span>
-            <select value={matchId} onChange={(event) => setMatchId(event.target.value)}>
-              {history.map((row) => (
-                <option key={row.match_id} value={row.match_id}>{row.title} · {formatDate(row.match_date)}</option>
-              ))}
-            </select>
-          </label>
+          <select aria-label="בחר מחזור" value={matchId} onChange={(event) => setMatchId(event.target.value)}>
+            {history.map((row) => (
+              <option key={row.match_id} value={row.match_id}>{row.title} · {formatDate(row.match_date)}</option>
+            ))}
+          </select>
           {selected && (
-            <div className="status-card" style={{ marginTop: 14 }}>
-              <div className="assignment-line">
-                <span>{selected.label}</span>
-                <span className="assignment-sep" aria-hidden="true">·</span>
+            <div className="history-line">
+              <span className="history-team">
                 <span className="assignment-swatch" style={{ background: selected.color_hex }} aria-hidden="true" />
-                <span className="assignment-team">{selected.color_name}</span>
-              </div>
-              <div className="stat-grid">
-                <Metric icon={Goal} label="שערים" value={selected.goals} />
-                <Metric icon={Activity} label="בישולים" value={selected.assists} />
-              </div>
-              <button onClick={() => setFixtureMatchId(selected.match_id)}>לכל הסטטיסטיקות של המחזור</button>
+                {selected.color_name} · {selected.label}
+              </span>
+              <span className="history-stat" title="שערים"><Goal size={15} aria-hidden="true" /> {selected.goals} שערים</span>
+              <span className="history-stat" title="בישולים"><Activity size={15} aria-hidden="true" /> {selected.assists} בישולים</span>
+              <button className="ghost history-more" onClick={() => setFixtureMatchId(selected.match_id)}>
+                לכל הסטטיסטיקות <ChevronLeft size={15} aria-hidden="true" />
+              </button>
             </div>
           )}
         </>
@@ -1936,7 +1945,22 @@ function MyHistoryCard({ player }) {
 // if they never enabled push at all) — a bottom sheet listing everything
 // they were ever sent, newest first. Same sheet chrome as FixtureStatusSheet
 // (.notif-sheet shares its CSS with .status-sheet — see styles.css).
-function NotificationCenter({ notifications, onClose, onDeleted, setToast }) {
+function readStoredIdSet(key) {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(key) || "[]"));
+  } catch {
+    return new Set();
+  }
+}
+
+// Keeps only the newest 200 ids so the list can't grow forever.
+function storeIdSet(key, ids) {
+  const next = [...new Set(ids)].slice(-200);
+  try { localStorage.setItem(key, JSON.stringify(next)); } catch { /* storage unavailable */ }
+  return new Set(next);
+}
+
+function NotificationCenter({ notifications, todoItems = [], onDismissTodo, onClose, onDeleted, setToast }) {
   useBackButtonClose(onClose);
   // Removed rows disappear at once; the server call follows, and a refused
   // one comes back with a message instead of silently staying gone.
@@ -1984,9 +2008,31 @@ function NotificationCenter({ notifications, onClose, onDeleted, setToast }) {
           <h2 id="notif-sheet-title">התראות</h2>
           <button className="modal-close" aria-label="סגירה" onClick={onClose}><X size={18} /></button>
         </div>
-        {!visible.length && <p className="notif-empty">עדיין לא קיבלת התראות</p>}
-        {visible.length > 0 && (
+        {!visible.length && !todoItems.length && <p className="notif-empty">עדיין לא קיבלת התראות</p>}
+        {(visible.length > 0 || todoItems.length > 0) && (
           <div className="notif-list">
+            {/* Action items lead the list: same row, plus a jump to the place
+                that handles it. Removing one only hides it on this device. */}
+            {todoItems.map((item) => (
+              <div className="notif-row notif-todo-row" key={item.id}>
+                <button
+                  type="button"
+                  className="notif-delete"
+                  aria-label={`הסרת ההתראה: ${item.text}`}
+                  title="הסרה"
+                  onClick={() => onDismissTodo(item.id)}
+                >
+                  <Trash2 size={15} />
+                </button>
+                <strong className="notif-todo-title">
+                  <item.icon size={16} aria-hidden="true" />
+                  {item.text}
+                </strong>
+                <button className="primary notif-todo-cta" onClick={item.onClick}>
+                  {item.cta} <ChevronLeft size={15} aria-hidden="true" />
+                </button>
+              </div>
+            ))}
             {visible.map((row) => (
               <div className="notif-row" key={row.id}>
                 <button
@@ -2073,7 +2119,7 @@ function PushNotificationPrompt({ player, setToast }) {
   );
 }
 
-function SubscriptionCard({ subscription, player, reload, setToast, askConfirm, wide }) {
+function SubscriptionCard({ subscription, player, reload, setToast, askConfirm, wide, anchorId }) {
   async function post(path, body) {
     const response = await fetch(`${API}${path}`, {
       method: "POST",
@@ -2114,20 +2160,22 @@ function SubscriptionCard({ subscription, player, reload, setToast, askConfirm, 
   const mySignup = subscription.mySignup;
 
   return (
-    <article className={`glass subscription-card${wide ? " wide" : ""}`}>
+    <article className={`glass subscription-card${wide ? " wide" : ""}`} id={anchorId}>
       <div>
         <p className="eyebrow">מנוי חודשי</p>
         <h2>{monthLabel(subscription.year, subscription.month)}</h2>
       </div>
-      {/* Just the days of the month — the month is already in the heading,
-          so "4 11 18 25" says it all. Not the admin's calendar grid. */}
-      <div className="subscription-dates">
-        {subscription.match_dates.map((iso) => (
-          <span className="subscription-day" key={iso} title={isoToDisplay(iso)}>
-            {Number(iso.slice(8, 10))}
-            <small className="subscription-day-month" aria-hidden="true">{Number(iso.slice(5, 7))}</small>
-          </span>
-        ))}
+      {/* One calendar page per game day — not the admin's calendar grid. */}
+      <div className="subscription-days">
+        <p className="muted">מועדי המשחקים החודש</p>
+        <div className="subscription-dates">
+          {subscription.match_dates.map((iso) => (
+            <span className="subscription-day" key={iso} title={isoToDisplay(iso)}>
+              <small className="subscription-day-month">{HEBREW_MONTH_NAMES[Number(iso.slice(5, 7)) - 1]}</small>
+              <span className="subscription-day-num">{Number(iso.slice(8, 10))}</span>
+            </span>
+          ))}
+        </div>
       </div>
       <div className="stat-grid">
         <Metric icon={CalendarDays} label="ימי משחק" value={subscription.match_dates.length} />
@@ -2596,7 +2644,7 @@ function teamOfPlayer(pitch, playerId) {
   return playerId ? pitch.teams.find((team) => team.players.some((player) => player.id === playerId)) : undefined;
 }
 
-// One fixture's published stats: the standouts, then one tab per pitch —
+// One fixture's published stats: one tab per pitch, then the standouts —
 // shared by the stats tab (current match) and FixtureStatsOverlay (any past
 // fixture). Opens on the viewer's own pitch when they played in it.
 function FixtureStatsBody({ bundle, playerId }) {
@@ -2606,20 +2654,6 @@ function FixtureStatsBody({ bundle, playerId }) {
   const pitch = pitches.find((item) => item.id === pitchId) || pitches[0];
   return (
     <div className="stack">
-      {bundle.standouts?.length > 0 && (
-        <article className="glass">
-          <p className="eyebrow">מצטייני המחזור</p>
-          <div className="standouts">
-            {bundle.standouts.map((item) => (
-              <div className="standout" key={item.player_id}>
-                <img src={item.avatar_url} alt="" />
-                <strong>{item.full_name}</strong>
-                <small>{item.reason}</small>
-              </div>
-            ))}
-          </div>
-        </article>
-      )}
       {pitches.length > 1 && (
         <nav className="admin-tabs pitch-tabs" role="tablist" aria-label="מגרשים">
           {pitches.map((item) => {
@@ -2640,6 +2674,20 @@ function FixtureStatsBody({ bundle, playerId }) {
         </nav>
       )}
       {pitch && <PitchStats key={pitch.id} pitch={pitch} goals={bundle.goals || []} playerId={playerId} />}
+      {bundle.standouts?.length > 0 && (
+        <article className="glass">
+          <p className="eyebrow">מצטייני המחזור</p>
+          <div className="standouts">
+            {bundle.standouts.map((item) => (
+              <div className="standout" key={item.player_id}>
+                <img src={item.avatar_url} alt="" />
+                <strong>{item.full_name}</strong>
+                <small>{item.reason}</small>
+              </div>
+            ))}
+          </div>
+        </article>
+      )}
     </div>
   );
 }
@@ -2822,7 +2870,7 @@ function PitchStats({ pitch, goals, playerId }) {
 // Cancellation requests need an explicit admin decision, so they surface at the
 // top of the admin area on every tab rather than only as a dashboard number.
 function CancellationAlerts({ rows, mutate, setSelectedMatchId }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
   if (!rows?.length) return null;
   return (
     <article className="glass alert-panel">
@@ -2884,7 +2932,7 @@ function CancellationAlerts({ rows, mutate, setSelectedMatchId }) {
 // dashboard used to show only a count on the registration tab, with no way to
 // act on it from here.
 function PaymentAlerts({ rows, mutate, setSelectedMatchId }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
   if (!rows?.length) return null;
   return (
     <article className="glass alert-panel alert-panel-info">
@@ -2942,7 +2990,7 @@ function PaymentAlerts({ rows, mutate, setSelectedMatchId }) {
 // Join requests need an explicit approve/reject decision. The dashboard used to
 // show only a count, with no way to act on it and no hint of where to look.
 function JoinRequestAlerts({ rows, mutate }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
   if (!rows?.length) return null;
   return (
     <article className="glass alert-panel alert-panel-info">
@@ -3000,24 +3048,6 @@ function JoinRequestAlerts({ rows, mutate }) {
 
 // When a cancellation empties a slot on an already-built lineup, the admin has
 // to put someone else in. Surface exactly which team is short and how many.
-function UnderstaffedAlerts({ rows, onGoToTeams }) {
-  if (!rows?.length) return null;
-  const totalMissing = rows.reduce((sum, row) => sum + row.needed, 0);
-  return (
-    <article className="glass alert-panel alert-panel-danger">
-      <div className="alert-head">
-        <span className="alert-badge danger">{totalMissing}</span>
-        <span className="alert-title">
-          {rows.length === 1
-            ? "קבוצה חסרה שחקנים. צריך למלא את המקום"
-            : "קבוצות חסרות שחקנים. צריך למלא את המקומות"}
-        </span>
-        <button className="primary alert-cta" onClick={onGoToTeams}>לבנאי הקבוצות</button>
-      </div>
-    </article>
-  );
-}
-
 const ADMIN_TAB_ICONS = {
   fixtures: CalendarDays,
   control: SlidersHorizontal,
@@ -3061,7 +3091,7 @@ function groupForTab(tabId) {
   return found ? found[0] : ADMIN_TAB_GROUPS[0][0];
 }
 
-function AdminView({ data, reload, refreshAll, user, selectedMatchId, setSelectedMatchId, setToast, askConfirm, forceControlTabSignal }) {
+function AdminView({ data, reload, refreshAll, user, selectedMatchId, setSelectedMatchId, selectSubscription, setToast, askConfirm, forceControlTabSignal, tabRequest }) {
   const isStatsOnly = user?.role === "stats_admin";
   const tabs = isStatsOnly
     ? [["results", "תוצאות"], ["audit", "לוג"]]
@@ -3088,6 +3118,11 @@ function AdminView({ data, reload, refreshAll, user, selectedMatchId, setSelecte
     if (forceControlTabSignal) setTab(isStatsOnly ? "results" : "control");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [forceControlTabSignal]);
+  // The bell's "דורש טיפול" items jump straight to the tab that handles them.
+  useEffect(() => {
+    if (tabRequest && tabs.some(([id]) => id === tabRequest.tab)) setTab(tabRequest.tab);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabRequest]);
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [tab]);
@@ -3161,12 +3196,6 @@ function AdminView({ data, reload, refreshAll, user, selectedMatchId, setSelecte
       })
     });
   }
-  const hasAlerts = Boolean(
-    data.pendingJoinRequests?.length ||
-    data.pendingPayments?.length ||
-    data.understaffedTeams?.length ||
-    data.pendingCancellations?.length
-  );
   const visibleTabs = isStatsOnly
     ? tabs
     : ADMIN_TAB_GROUPS.find(([id]) => id === activeGroup)[3];
@@ -3198,25 +3227,6 @@ function AdminView({ data, reload, refreshAll, user, selectedMatchId, setSelecte
           );
         })}
       </nav>
-      {hasAlerts && (
-        <>
-          <article className="glass page-title">
-            <div>
-              <p className="eyebrow">מרכז בקרה</p>
-              <h2>מה דורש טיפול עכשיו</h2>
-            </div>
-            <span className="pill"><Bell size={13} /> דירוגים מוצגים רק כאן</span>
-          </article>
-          <JoinRequestAlerts rows={data.pendingJoinRequests} mutate={mutate} />
-          <PaymentAlerts rows={data.pendingPayments} mutate={mutate} setSelectedMatchId={setSelectedMatchId} />
-          <UnderstaffedAlerts rows={data.understaffedTeams} onGoToTeams={() => setTab("teams")} />
-          <CancellationAlerts
-            rows={data.pendingCancellations}
-            mutate={mutate}
-            setSelectedMatchId={setSelectedMatchId}
-          />
-        </>
-      )}
       {/* On the teams tab, AdminTeams shows the fixture name in its own
           toolbar instead of this card. The subscription tab isn't about any
           one fixture at all. */}
@@ -3242,10 +3252,17 @@ function AdminView({ data, reload, refreshAll, user, selectedMatchId, setSelecte
           isFullAdmin={user?.role === "admin"}
         />
       )}
+      {tab === "players" && <JoinRequestAlerts rows={data.pendingJoinRequests} mutate={mutate} />}
       {tab === "players" && <AdminPlayers players={data.players} mutate={mutate} bundle={bundle} user={user} weights={rankWeights} />}
+      {tab === "registration" && (
+        <>
+          <PaymentAlerts rows={data.pendingPayments} mutate={mutate} setSelectedMatchId={setSelectedMatchId} />
+          <CancellationAlerts rows={data.pendingCancellations} mutate={mutate} setSelectedMatchId={setSelectedMatchId} />
+        </>
+      )}
       {tab === "registration" && <AdminRegistration bundle={bundle} players={data.players} mutate={mutate} user={user} weights={rankWeights} />}
       {tab === "teams" && <AdminTeams bundle={bundle} players={data.players} mutate={mutate} weights={rankWeights} />}
-      {tab === "subscription" && <AdminSubscription data={data} mutate={mutate} setToast={setToast} />}
+      {tab === "subscription" && <AdminSubscription data={data} mutate={mutate} setToast={setToast} selectSubscription={selectSubscription} />}
       {tab === "notifications" && <AdminNotifications data={data} mutate={mutate} setToast={setToast} />}
       {tab === "results" && <AdminResults bundle={bundle} players={data.players} mutate={mutate} />}
       {tab === "audit" && <AuditLog rows={data.audit} />}
@@ -4546,6 +4563,10 @@ function AdminControl({ bundle, mutate, pendingPaymentsCount, pendingJoinRequest
 
 // The month AFTER the current one, computed client-side (the club's own
 // device/timezone) rather than guessed on the server.
+function followingMonth(year, month) {
+  return month === 12 ? { year: year + 1, month: 1 } : { year, month: month + 1 };
+}
+
 function nextCalendarMonth() {
   const now = new Date();
   return now.getMonth() === 11
@@ -4558,9 +4579,18 @@ function nextCalendarMonth() {
 // paid — see db/migrations/012_monthly_subscriptions.sql for the full
 // rationale. Total/amount-due are never edited directly, only days and
 // price — the total is always their product, computed server-side.
-function AdminSubscription({ data, mutate, setToast }) {
+function AdminSubscription({ data, mutate, setToast, selectSubscription }) {
   const subscription = data.subscription;
-  const { year: nextYear, month: nextMonth } = nextCalendarMonth();
+  // The month to offer creating: the one after the latest month that
+  // already has a subscription (so on Oct 22, with October open, that's
+  // November), never earlier than next calendar month.
+  const latest = data.subscriptions?.[0];
+  const afterLatest = latest ? followingMonth(latest.year, latest.month) : null;
+  const nextCal = nextCalendarMonth();
+  const { year: nextYear, month: nextMonth } = afterLatest && (afterLatest.year * 12 + afterLatest.month) > (nextCal.year * 12 + nextCal.month)
+    ? afterLatest
+    : nextCal;
+  const nextExists = data.subscriptions?.some((row) => row.year === nextYear && row.month === nextMonth);
   const [priceDraft, setPriceDraft] = useState(subscription?.price_per_match ?? 39);
   // Marking a day PATCHes the server, then mutate() reloads the whole admin
   // bundle before the response lands — real, but slow enough on a flaky
@@ -4581,7 +4611,9 @@ function AdminSubscription({ data, mutate, setToast }) {
     mutate("/api/admin/subscriptions", {
       method: "POST",
       body: { year: nextYear, month: nextMonth },
-      success: "טיוטת המנוי נוצרה"
+      success: "טיוטת המנוי נוצרה",
+      // Jump straight to the new draft once the bundle reloads.
+      after: (payload) => { if (payload?.id) selectSubscription(payload.id); }
     });
   }
 
@@ -4684,15 +4716,25 @@ function AdminSubscription({ data, mutate, setToast }) {
 
   return (
     <>
-      {data.subscriptions?.length > 1 && (
-        <div className="subscription-history">
-          {data.subscriptions.map((row) => (
-            <span className="pill" key={row.id}>
-              {monthLabel(row.year, row.month)} · {row.status === "open" ? "פורסם" : "טיוטה"}
-            </span>
-          ))}
-        </div>
-      )}
+      {/* Month switcher: every recent month, plus preparing the next one
+          ahead of time (it stays a hidden draft until published). */}
+      <nav className="admin-tabs subscription-months" aria-label="חודשי מנוי">
+        {[...(data.subscriptions || [])].reverse().map((row) => (
+          <button
+            key={row.id}
+            className={row.id === subscription.id ? "active" : ""}
+            onClick={() => selectSubscription(row.id)}
+          >
+            {monthLabel(row.year, row.month)}
+            <small>{row.status === "open" ? "פורסם" : "טיוטה"}</small>
+          </button>
+        ))}
+        {!nextExists && (
+          <button onClick={createDraft}>
+            <Plus size={15} /> {monthLabel(nextYear, nextMonth)}
+          </button>
+        )}
+      </nav>
       <article className="glass admin-subscription-card">
         <div className="section-head">
           <div>
@@ -7517,9 +7559,41 @@ function restoreTimerState() {
   return { minutesSetting, remaining, running, deadline };
 }
 
-// A plain countdown, one line: minutes setting, the clock, start/pause,
-// reset. No cues, no background music — just enough to know how much time
-// is left. Survives the component unmounting (switching tabs, backgrounding
+// Match sounds, all through one Web Audio context. Phones only allow audio
+// that a tap unlocked, so unlockMatchAudio() runs on the start button and
+// the cues later play from the timer without another tap. Both are
+// recordings in client/public, decoded once up front so they play instantly.
+const MATCH_SOUND_FILES = { whistle: "/final whistle.mp3", buzzer: "/nba-horn.mp3" };
+let matchAudioContext = null;
+const matchSoundBuffers = {};
+function unlockMatchAudio() {
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  if (!AudioCtx) return null;
+  if (!matchAudioContext) matchAudioContext = new AudioCtx();
+  if (matchAudioContext.state === "suspended") matchAudioContext.resume().catch(() => {});
+  for (const [name, path] of Object.entries(MATCH_SOUND_FILES)) {
+    matchSoundBuffers[name] ||= fetch(encodeURI(path))
+      .then((response) => response.arrayBuffer())
+      .then((bytes) => new Promise((resolve, reject) => matchAudioContext.decodeAudioData(bytes, resolve, reject)))
+      .catch(() => null);
+  }
+  return matchAudioContext;
+}
+
+async function playMatchSound(name) {
+  const ctx = unlockMatchAudio();
+  if (!ctx) return;
+  const buffer = await matchSoundBuffers[name];
+  if (!buffer) return;
+  const source = ctx.createBufferSource();
+  source.buffer = buffer;
+  source.connect(ctx.destination);
+  source.start();
+}
+
+// A countdown built for a phone held at the side of the pitch: a huge
+// clock, start/pause and reset under it. A referee whistle sounds with one
+// minute left and the NBA horn when time is up (mutable). Survives the component unmounting (switching tabs, backgrounding
 // the app, even closing and reopening it): state is mirrored to localStorage
 // and the countdown is always derived from a wall-clock deadline, never
 // decremented tick by tick, so time that passed while the page wasn't
@@ -7534,6 +7608,10 @@ function MatchTimer() {
   const [remaining, setRemaining] = useState(init.remaining);
   const [running, setRunning] = useState(init.running);
   const deadlineRef = React.useRef(init.deadline);
+  const remainingRef = React.useRef(init.remaining);
+  const [soundOn, setSoundOn] = useState(() => loadTimerStorage()?.soundOn !== false);
+  const soundOnRef = React.useRef(soundOn);
+  soundOnRef.current = soundOn;
 
   // The one place that turns "how much wall-clock time is left" into state —
   // called every second while running, and also the instant the tab/app
@@ -7542,6 +7620,15 @@ function MatchTimer() {
   function resync() {
     if (!deadlineRef.current) return;
     const next = Math.max(0, Math.round((deadlineRef.current - Date.now()) / 1000));
+    const previous = remainingRef.current;
+    remainingRef.current = next;
+    if (soundOnRef.current) {
+      if (previous > 60 && next <= 60 && next > 0) playMatchSound("whistle");
+      if (previous > 0 && next <= 0) {
+        playMatchSound("buzzer");
+        navigator.vibrate?.([1200]);
+      }
+    }
     setRemaining(next);
     patchTimerStorage({ remaining: next });
     if (next <= 0) {
@@ -7585,6 +7672,7 @@ function MatchTimer() {
     const next = !running;
     setRunning(next);
     if (next) {
+      unlockMatchAudio();
       deadlineRef.current = Date.now() + remaining * 1000;
       patchTimerStorage({ running: true, deadline: deadlineRef.current, remaining });
     } else {
@@ -7597,15 +7685,25 @@ function MatchTimer() {
     const next = minutesSetting * 60;
     setRunning(false);
     deadlineRef.current = null;
+    remainingRef.current = next;
     setRemaining(next);
     patchTimerStorage({ running: false, deadline: null, remaining: next });
+  }
+
+  function toggleSound() {
+    const next = !soundOn;
+    setSoundOn(next);
+    patchTimerStorage({ soundOn: next });
+    if (next) unlockMatchAudio();
   }
 
   const minutes = Math.floor(remaining / 60);
   const seconds = remaining % 60;
 
   return (
-    <div className="glass match-timer-bar">
+    <div className={`glass match-timer-bar${remaining <= 0 ? " is-over" : remaining <= 60 && running ? " is-last-minute" : ""}`}>
+      <strong className="match-timer-clock" role="timer" aria-live="off">{minutes}:{String(seconds).padStart(2, "0")}</strong>
+      <div className="match-timer-controls">
       <div className="stepper score-stepper match-timer-minutes">
         <button type="button" aria-label="פחות דקה" disabled={running} onClick={() => setMinutesSetting((value) => Math.max(1, value - 1))}>-</button>
         <input
@@ -7619,9 +7717,19 @@ function MatchTimer() {
         />
         <button type="button" aria-label="עוד דקה" disabled={running} onClick={() => setMinutesSetting((value) => Math.min(30, value + 1))}>+</button>
       </div>
-      <strong className="match-timer-clock">{minutes}:{String(seconds).padStart(2, "0")}</strong>
-      <button className="primary" onClick={toggleRunning}>{running ? "השהה" : "התחל"}</button>
+      <button className="primary match-timer-start" onClick={toggleRunning} disabled={!running && remaining <= 0}>{running ? "השהה" : "התחל"}</button>
       <button onClick={reset}>איפוס</button>
+      <button
+        type="button"
+        className="ghost icon-only"
+        aria-pressed={soundOn}
+        aria-label={soundOn ? "השתקת צלילים" : "הפעלת צלילים"}
+        title={soundOn ? "צלילים פעילים" : "צלילים מושתקים"}
+        onClick={toggleSound}
+      >
+        {soundOn ? <Bell size={18} /> : <BellOff size={18} />}
+      </button>
+      </div>
     </div>
   );
 }
@@ -7833,11 +7941,15 @@ function LiveGameRow({ pitchId, game, teams, goals, mutate, defaultOpen, collaps
   if (!teamA || !teamB) return null;
 
   return (
-    <article className="glass live-game-row">
+    <article
+      className="glass live-game-row team-sides"
+      style={{ "--team-a": teamA.color_hex, "--team-b": teamB.color_hex }}
+    >
       <button type="button" className="live-game-row-head" onClick={() => setOpen((value) => !value)} aria-expanded={open}>
-        <span className="live-game-row-team">{teamA.color_name}</span>
-        <strong className="live-game-row-score">{game.team_a_goals} - {game.team_b_goals}</strong>
-        <span className="live-game-row-team">{teamB.color_name}</span>
+        <span className="live-game-row-team"><TeamChip team={teamA} /></span>
+        {/* LTR with B first so team A's goals sit on its own (right) side. */}
+        <strong className="live-game-row-score" dir="ltr">{game.team_b_goals} - {game.team_a_goals}</strong>
+        <span className="live-game-row-team"><TeamChip team={teamB} /></span>
         <ChevronLeft size={18} className={open ? "alert-chevron open" : "alert-chevron"} />
       </button>
 
@@ -7848,7 +7960,7 @@ function LiveGameRow({ pitchId, game, teams, goals, mutate, defaultOpen, collaps
               {goals.map((goal) => {
                 const goalTeam = teams.find((team) => team.id === goal.team_id);
                 return (
-                <li key={goal.id}>
+                <li key={goal.id} className="team-tinted" style={{ "--team": goalTeam?.color_hex }}>
                   <span>
                     <Goal size={14} />
                     <span className="team-dot" style={{ background: goalTeam?.color_hex }} title={goalTeam?.color_name} />
@@ -8006,7 +8118,11 @@ function GameRow({ game, pitch, goals, mutate }) {
   return (
     <div className="admin-list-row game-row">
       <div className="standing-row">
-        <strong>{teamName(pitch, game.team_a_id)} {game.team_a_goals} - {game.team_b_goals} {teamName(pitch, game.team_b_id)}</strong>
+        <strong className="game-row-line">
+          <TeamChip team={teamOf(pitch, game.team_a_id)} />
+          <span className="game-row-score" dir="ltr">{game.team_b_goals} - {game.team_a_goals}</span>
+          <TeamChip team={teamOf(pitch, game.team_b_id)} />
+        </strong>
         <span>{game.ended_by === "time" ? "זמן" : "2 שערים"}</span>
         {!editing && goals.length > 0 && (
           <button type="button" className="ghost game-events-toggle" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
@@ -8027,8 +8143,8 @@ function GameRow({ game, pitch, goals, mutate }) {
       {!editing && open && goals.length > 0 && (
         <ul className="goal-events-list">
           {goals.map((goal) => (
-            <li key={goal.id}>
-              <Goal size={14} /> {goal.own_goal ? "שער עצמי" : `${goal.scorer_name}${goal.assist_name ? ` (בישול: ${goal.assist_name})` : ""}`} · {teamName(pitch, goal.team_id)}
+            <li key={goal.id} className="team-tinted" style={{ "--team": teamOf(pitch, goal.team_id)?.color_hex }}>
+              <Goal size={14} /> {goal.own_goal ? "שער עצמי" : `${goal.scorer_name}${goal.assist_name ? ` (בישול: ${goal.assist_name})` : ""}`} · <TeamChip team={teamOf(pitch, goal.team_id)} />
             </li>
           ))}
         </ul>
@@ -8099,9 +8215,9 @@ function EditGameForm({ game, pitch, goals, mutate }) {
         {goals.length > 0 && (
           <ul className="goal-events-list editable">
             {goals.map((goal) => (
-              <li key={goal.id}>
+              <li key={goal.id} className="team-tinted" style={{ "--team": teamOf(pitch, goal.team_id)?.color_hex }}>
                 <span>
-                  <Goal size={14} /> {goal.own_goal ? "שער עצמי" : `${goal.scorer_name}${goal.assist_name ? ` (בישול: ${goal.assist_name})` : ""}`} · {teamName(pitch, goal.team_id)}
+                  <Goal size={14} /> {goal.own_goal ? "שער עצמי" : `${goal.scorer_name}${goal.assist_name ? ` (בישול: ${goal.assist_name})` : ""}`} · <TeamChip team={teamOf(pitch, goal.team_id)} />
                 </span>
                 <button
                   type="button"
@@ -8537,6 +8653,20 @@ function formatDateTimeExact(date) {
 function dateInput(date) {
   if (!date) return "";
   return new Date(date).toISOString().slice(0, 10);
+}
+
+function teamOf(pitch, teamId) {
+  return pitch.teams.find((team) => team.id === teamId);
+}
+
+// A team as its shirt colour + name, so "who vs whom" reads at a glance.
+function TeamChip({ team }) {
+  return (
+    <span className="team-chip">
+      <span className="assignment-swatch" style={{ background: team?.color_hex }} aria-hidden="true" />
+      {team?.color_name || "קבוצה"}
+    </span>
+  );
 }
 
 function teamName(pitch, teamId) {

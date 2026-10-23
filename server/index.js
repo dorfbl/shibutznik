@@ -986,7 +986,9 @@ app.get("/api/admin", asyncRoute(async (_req, res) => {
   // Default to the newest draft (what an admin mid-setup wants to come back
   // to), else the newest one overall — same "most recently relevant" spirit
   // as getActiveMatch above.
-  const selectedSubscriptionId = requestedSubscriptionId
+  // A stale id (e.g. from another org the admin just switched away from)
+  // falls back to the default pick rather than showing nothing.
+  const selectedSubscriptionId = subscriptions.rows.find((row) => row.id === requestedSubscriptionId)?.id
     || subscriptions.rows.find((row) => row.status === "draft")?.id
     || subscriptions.rows[0]?.id
     || null;

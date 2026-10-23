@@ -2149,28 +2149,6 @@ button.formation-player { cursor: grab; }
   .push-prompt-actions button { flex: 1 1 0; }
 }
 
-/* ---- "דורש טיפול" action items panel (top of the player home page) ---- */
-.action-items { border-color: var(--acc); }
-.action-items-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
-.action-item-row {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
-  padding: 10px 12px;
-  background: var(--acc-dim);
-  border: 1px solid color-mix(in srgb, var(--acc) 25%, transparent);
-  border-radius: var(--r-md);
-}
-.action-item-icon { flex: none; color: var(--acc); }
-.action-item-row > span { flex: 1 1 160px; min-width: 0; font-size: .88rem; font-weight: 600; color: var(--ink); }
-.action-item-buttons { display: flex; gap: 8px; flex: none; }
-@media (max-width: 759px) {
-  .action-item-row { flex-direction: column; align-items: stretch; }
-  .action-item-buttons { width: 100%; }
-  .action-item-buttons button { flex: 1 1 0; }
-}
-
 /* ---- Notification bell (topbar) + notification center sheet ---- */
 .notif-bell-btn { position: relative; }
 .notif-badge {
@@ -4187,20 +4165,33 @@ html, body { max-width: 100%; overflow-x: hidden; touch-action: manipulation; }
 
 /* One line: minutes stepper, clock, start/pause, reset. */
 .match-timer-bar {
-  display: flex;
-  align-items: center;
+  display: grid;
   gap: 10px;
-  flex-wrap: wrap;
-  padding: 10px 14px;
+  padding: 14px;
 }
-.match-timer-minutes { flex: none; }
+/* The clock is the point of this card on a phone at pitch-side: as big as
+   the width allows, readable from a few metres away. */
 .match-timer-clock {
-  flex: 1 1 auto;
-  min-width: 56px;
+  display: block;
   text-align: center;
-  font-size: 1.3rem;
-  font-weight: 800;
+  font-family: var(--font-display);
+  font-size: clamp(6rem, 34vw, 11rem);
+  font-weight: 700;
+  line-height: .85;
+  letter-spacing: .01em;
   font-variant-numeric: tabular-nums;
+  direction: ltr;
+  color: var(--ink);
+  transition: color .3s var(--ease);
+}
+.match-timer-bar.is-last-minute .match-timer-clock { color: var(--warn); }
+.match-timer-bar.is-over .match-timer-clock { color: var(--bad); animation: match-timer-flash 1s steps(2, start) 4; }
+@keyframes match-timer-flash { to { visibility: hidden; } }
+.match-timer-controls { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 10px; }
+.match-timer-minutes { flex: none; width: 150px; }
+.match-timer-start { min-width: 110px; min-height: 48px; font-size: 1.05rem; }
+@media (prefers-reduced-motion: reduce) {
+  .match-timer-bar.is-over .match-timer-clock { animation: none; }
 }
 
 /* Sits right under the timer now, not as a full-width closer under the
@@ -4778,20 +4769,45 @@ button.pitch-field-title:disabled { opacity: 1; }
 .subscription-card { display: grid; gap: var(--space-4); align-content: start; }
 .subscription-card > * { margin: 0; }
 .subscription-card .subscription-dates { margin: 0; gap: 10px; }
-/* Just the day numbers, large, in the scoreboard face */
+/* Each game day as a tear-off calendar page: a turf-green month strip
+   over a big day number. */
+.subscription-days { display: grid; gap: 8px; }
+.subscription-days > p { margin: 0; font-size: .86rem; }
 .subscription-day {
-  min-width: 58px;
-  padding: 8px 10px 6px;
-  border-radius: var(--r-md);
-  background: var(--surface-2);
-  border: 1px solid var(--line-soft);
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 2.4rem;
-  line-height: .9;
+  --cal-body: var(--surface-2);
+  --cal-ink: var(--ink);
+  --cal-rim: var(--line);
+  display: inline-flex;
+  flex-direction: column;
+  width: 76px;
+  overflow: hidden;
+  border: 1.5px solid var(--cal-rim);
+  border-radius: 12px;
+  background: var(--cal-body);
   text-align: center;
-  color: var(--ink);
+  box-shadow: 0 1px 2px rgba(0,0,0,.08);
+}
+.subscription-day-month {
+  padding: 4px 4px 3px;
+  background: var(--turf);
+  color: var(--turf-ink);
+  font-size: .82rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+.subscription-day-num {
+  padding: 10px 4px 12px;
+  color: var(--cal-ink);
+  font-size: 2.1rem;
+  font-weight: 800;
+  line-height: 1;
   font-variant-numeric: tabular-nums;
+}
+:root[data-theme="light"] .subscription-day { --cal-body: #ffffff; --cal-ink: #111827; --cal-rim: #d1d5db; }
+@media (max-width: 559px) {
+  .subscription-day { width: 64px; border-radius: 10px; }
+  .subscription-day-month { font-size: .74rem; }
+  .subscription-day-num { padding: 8px 4px 9px; font-size: 1.75rem; }
 }
 
 /* The fixture card sits in half of the home grid, so its own two-column
@@ -4832,19 +4848,6 @@ button.pitch-field-title:disabled { opacity: 1; }
   .subscription-pricing input { min-height: 40px; padding-block: 8px; }
 }
 
-/* Player subscription tiles: a tiny month number tucked in the corner */
-.subscription-day { position: relative; }
-.subscription-day-month {
-  position: absolute;
-  top: 4px;
-  inset-inline-end: 6px;
-  font-family: var(--font-body);
-  font-size: .58rem;
-  font-weight: 600;
-  line-height: 1;
-  color: var(--ink-4);
-  font-variant-numeric: tabular-nums;
-}
 @media (max-width: 759px) {
   /* Subscriber rows: name/amount and the three actions in a tighter block */
   .subscriber-row { padding: 10px 12px; gap: 8px 10px; }
@@ -5000,23 +5003,6 @@ button.pitch-field-title:disabled { opacity: 1; }
 .payment-cta:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
 .payment-link-form { margin: 4px 0 12px; }
 
-/* "דורש טיפול" on phones: icon + text on one line, the action(s) full width
-   underneath. (The column layout used to turn the text's 160px flex-basis
-   into a 160px HEIGHT, so each row filled half the screen.) */
-@media (max-width: 759px) {
-  .action-item-row {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    align-items: center;
-    gap: 8px 10px;
-    padding: 10px 12px;
-  }
-  .action-item-row > span { flex: none; line-height: 1.4; }
-  .action-item-row > button,
-  .action-item-row > .action-item-buttons { grid-column: 1 / -1; }
-  .action-item-row > button { width: 100%; }
-  .action-item-row button { min-height: 40px; padding-block: 8px; }
-}
 
 /* ==========================================================================
    Primary nav hides in admin mode / organization management
@@ -5161,3 +5147,48 @@ button.pitch-field-title:disabled { opacity: 1; }
   .result-score { min-width: 54px; padding-inline: 6px; }
   .scorer-row { grid-template-columns: 24px minmax(0, 1fr) 46px 46px; gap: 6px; }
 }
+
+/* Admin subscription month switcher: each month with its status beneath */
+.subscription-months { align-self: start; }
+.subscription-months button { display: inline-flex; align-items: center; gap: 6px; }
+.subscription-months button small { font-size: .7rem; font-weight: 600; opacity: .75; }
+
+/* ---- Bell sheet: action items — a regular notification row (same trash
+       button), tinted, with a jump to the place that handles it. ---- */
+.notif-row.notif-todo-row {
+  background: var(--acc-dim);
+  border-color: color-mix(in srgb, var(--acc) 35%, transparent);
+}
+:root[data-theme="light"] .notif-row.notif-todo-row { background: var(--acc-dim); }
+.notif-todo-title { display: inline-flex; align-items: center; gap: 8px; line-height: 1.4; }
+.notif-todo-title svg { flex: none; color: var(--acc); }
+.notif-todo-cta { justify-self: start; align-self: flex-start; margin-top: 6px; min-height: 34px; padding: 5px 12px; font-size: .84rem; }
+
+/* Home "ההיסטוריה שלי": a short card — picker, then one line of team,
+   goals and assists, with the full-stats link at its end. */
+.history-card { display: grid; gap: 10px; align-content: start; }
+.history-card > * { margin: 0; }
+.history-card select { max-width: 340px; }
+.history-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; font-size: .9rem; }
+.history-team { display: inline-flex; align-items: center; gap: 7px; font-weight: 700; }
+.history-stat { display: inline-flex; align-items: center; gap: 5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.history-stat svg { color: var(--turf); }
+.history-more { margin-inline-start: auto; min-height: 34px; padding: 5px 10px; font-size: .84rem; }
+
+/* Live/admin game rows: each side edged in its team's shirt colour, and
+   goals tinted by the scoring team. */
+.team-chip { display: inline-flex; align-items: center; gap: 6px; min-width: 0; vertical-align: middle; }
+.live-game-row.team-sides {
+  border-inline-start: 5px solid var(--team-a);
+  border-inline-end: 5px solid var(--team-b);
+}
+.live-game-row-team { display: flex; justify-content: center; }
+.goal-events-list li.team-tinted {
+  border-inline-start: 4px solid var(--team, var(--line));
+  background: color-mix(in srgb, var(--team, transparent) 10%, var(--surface-2));
+}
+.goal-events-list li .team-chip { flex: none; font-weight: 600; }
+.game-row-line { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.game-row-score { font-variant-numeric: tabular-nums; }
+/* `.goal-events-list li span` makes every span grow — keep the chip's dot small. */
+.goal-events-list li .team-chip .assignment-swatch { flex: none; width: 12px; height: 12px; }
